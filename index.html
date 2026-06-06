@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HRMS - เพิ่มผู้ใช้จาก Excel</title>
+    <meta name="description" content="ระบบเพิ่มผู้ใช้งานจากไฟล์ Excel สำหรับ HRMS">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-glow"></div>
+            <div class="header-content">
+                <div class="logo-area">
+                    <div class="logo-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <line x1="19" y1="8" x2="19" y2="14"/>
+                            <line x1="22" y1="11" x2="16" y2="11"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1>HRMS - เพิ่มผู้ใช้งาน</h1>
+                        <p class="header-subtitle">นำเข้าข้อมูลผู้ใช้จากไฟล์ Excel</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Step 1: Settings -->
+            <section class="card settings-card">
+                <div class="card-header">
+                    <span class="step-badge">1</span>
+                    <h2>ตั้งค่าการเพิ่มผู้ใช้</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="ddlUserGrp">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                                กลุ่มผู้ใช้
+                            </label>
+                            <select id="ddlUserGrp" class="form-control">
+                                <option value="">-- กำลังโหลด... --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="txtPassword">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                                รหัสผ่าน (ใช้ร่วมกันทุกคน)
+                            </label>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="txtPassword" class="form-control" placeholder="กำหนดรหัสผ่าน...">
+                                <button type="button" class="toggle-password" id="togglePassword" title="แสดง/ซ่อนรหัสผ่าน">
+                                    <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 2: Upload -->
+            <section class="card upload-card">
+                <div class="card-header">
+                    <span class="step-badge">2</span>
+                    <h2>อัพโหลดไฟล์ Excel</h2>
+                </div>
+                <div class="card-body">
+                    <div class="dropzone" id="dropzone">
+                        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+                        <div class="dropzone-content">
+                            <div class="dropzone-icon">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                            </div>
+                            <p class="dropzone-text">ลากไฟล์ Excel มาวางที่นี่</p>
+                            <p class="dropzone-subtext">หรือ <span class="browse-link">คลิกเพื่อเลือกไฟล์</span></p>
+                            <p class="dropzone-hint">รองรับไฟล์ .xlsx, .xls, .csv — คอลัมน์: <strong>name</strong>, <strong>username</strong></p>
+                        </div>
+                    </div>
+                    <div class="file-info" id="fileInfo" style="display:none;">
+                        <div class="file-info-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="file-info-details">
+                            <span class="file-name" id="fileName"></span>
+                            <span class="file-size" id="fileSize"></span>
+                        </div>
+                        <button class="btn-remove-file" id="removeFile" title="ลบไฟล์">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Preview -->
+            <section class="card preview-card" id="previewSection" style="display:none;">
+                <div class="card-header">
+                    <span class="step-badge">3</span>
+                    <h2>ตรวจสอบข้อมูล</h2>
+                    <div class="card-header-actions">
+                        <span class="record-count" id="recordCount"></span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-wrapper">
+                        <table class="data-table" id="previewTable">
+                            <thead>
+                                <tr>
+                                    <th class="col-num">#</th>
+                                    <th class="col-name">ชื่อ (จาก Excel)</th>
+                                    <th class="col-username">Username</th>
+                                    <th class="col-match">รหัสพนักงาน</th>
+                                    <th class="col-status">สถานะ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="preview-actions">
+                        <button class="btn btn-primary btn-submit" id="btnSubmit" disabled>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                            เพิ่มผู้ใช้ทั้งหมด
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Progress -->
+            <section class="card progress-card" id="progressSection" style="display:none;">
+                <div class="card-header">
+                    <span class="step-badge">4</span>
+                    <h2>กำลังดำเนินการ</h2>
+                </div>
+                <div class="card-body">
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-bar" id="progressBar">
+                            <div class="progress-bar-fill" id="progressBarFill"></div>
+                        </div>
+                        <span class="progress-text" id="progressText">0%</span>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="stat stat-success">
+                            <span class="stat-value" id="statSuccess">0</span>
+                            <span class="stat-label">สำเร็จ</span>
+                        </div>
+                        <div class="stat stat-fail">
+                            <span class="stat-value" id="statFail">0</span>
+                            <span class="stat-label">ล้มเหลว</span>
+                        </div>
+                        <div class="stat stat-total">
+                            <span class="stat-value" id="statTotal">0</span>
+                            <span class="stat-label">ทั้งหมด</span>
+                        </div>
+                    </div>
+                    <div class="log-wrapper" id="logWrapper">
+                        <div class="log-entries" id="logEntries"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>HRMS Batch User Import Tool &copy; 2026</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
