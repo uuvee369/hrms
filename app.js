@@ -2,11 +2,11 @@
 // HRMS Batch User Import - Application Logic
 // =============================================
 
-const API_BASE = 'https://hrms128.thai-nrls.org/HRMS11388/Database';
+// API ยิงผ่าน Python proxy server (localhost:5000)
 const API = {
-    userGroups: `${API_BASE}/GetJSonDataUserGrp`,
-    employees: `${API_BASE}/GetJSonEmplList`,
-    saveUser: `${API_BASE}/SaveUser`,
+    userGroups: '/api/GetJSonDataUserGrp',
+    employees: '/api/GetJSonEmplList',
+    saveUser: '/api/SaveUser',
 };
 
 // State
@@ -15,6 +15,7 @@ let parsedRows = [];
 let matchedRows = [];
 
 // DOM Elements
+const txtSessionId = document.getElementById('txtSessionId');
 const ddlUserGrp = document.getElementById('ddlUserGrp');
 const txtPassword = document.getElementById('txtPassword');
 const togglePassword = document.getElementById('togglePassword');
@@ -41,8 +42,7 @@ const logWrapper = document.getElementById('logWrapper');
 // Initialize
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
-    loadUserGroups();
-    loadEmployeeList();
+    setupSessionIdListener();
     setupDropzone();
     setupPasswordToggle();
     setupSubmitButton();
@@ -50,11 +50,43 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // =============================================
-// API Calls
+// Session ID — เมื่อกรอกแล้วจะโหลดข้อมูลอัตโนมัติ
 // =============================================
+let sessionLoadTimeout = null;
+
+function setupSessionIdListener() {
+    txtSessionId.addEventListener('input', () => {
+        clearTimeout(sessionLoadTimeout);
+        sessionLoadTimeout = setTimeout(() => {
+            const sid = txtSessionId.value.trim();
+            if (sid.length > 10) {
+                loadUserGroups();
+                loadEmployeeList();
+            }
+        }, 500); // debounce 500ms
+    });
+}
+
+function getSessionId() {
+    return txtSessionId.value.trim();
+}
+
+// =============================================
+// API Calls (ผ่าน proxy)
+// =============================================
+async function apiFetch(url, options = {}) {
+    const sid = getSessionId();
+    const headers = {
+        'X-Session-Id': sid,
+        ...(options.headers || {}),
+    };
+    return fetch(url, { ...options, headers });
+}
+
 async function loadUserGroups() {
+    ddlUserGrp.innerHTML = '<option value="">-- กำลังโหลด... --</option>';
     try {
-        const res = await fetch(API.userGroups);
+        const res = await apiFetch(API.userGroups);
         const json = await res.json();
         if (json.ResponseStatus === '1' && json.ResponseData) {
             const groups = JSON.parse(json.ResponseData);
@@ -65,20 +97,26 @@ async function loadUserGroups() {
                 opt.textContent = g.Name;
                 ddlUserGrp.appendChild(opt);
             });
+        } else {
+            ddlUserGrp.innerHTML = '<option value="">-- Session หมดอายุ ลองใหม่ --</option>';
         }
     } catch (err) {
         console.error('โหลดกลุ่มผู้ใช้ล้มเหลว:', err);
-        ddlUserGrp.innerHTML = '<option value="">-- โหลดข้อมูลล้มเหลว --</option>';
+        ddlUserGrp.innerHTML = '<option value="">-- โหลดล้มเหลว (เช็ค server) --</option>';
     }
 }
 
 async function loadEmployeeList() {
     try {
-        const res = await fetch(API.employees);
+        const res = await apiFetch(API.employees);
         const json = await res.json();
         if (json.ResponseStatus === '1' && json.ResponseData) {
             employeeList = JSON.parse(json.ResponseData);
-            console.log(`โหลดรายชื่อพนักงาน ${employeeList.length} คน`);
+            console.log(`✅ โหลดรายชื่อพนักงาน ${employeeList.length} คน`);
+            // Re-match if data is already loaded
+            if (parsedRows.length > 0) {
+                matchAndPreview();
+            }
         }
     } catch (err) {
         console.error('โหลดรายชื่อพนักงานล้มเหลว:', err);
@@ -148,13 +186,8 @@ function setupRemoveFile() {
 }
 
 function handleFile(file) {
-    const validTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel',
-        'text/csv',
-    ];
     const ext = file.name.split('.').pop().toLowerCase();
-    if (!validTypes.includes(file.type) && !['xlsx', 'xls', 'csv'].includes(ext)) {
+    if (!['xlsx', 'xls', 'csv'].includes(ext)) {
         alert('กรุณาเลือกไฟล์ Excel (.xlsx, .xls) หรือ CSV เท่านั้น');
         return;
     }
@@ -213,7 +246,7 @@ function matchAndPreview() {
     matchedRows = parsedRows.map(row => {
         const name = row.name;
         const username = row.username;
-        // Try to find matching employee
+        // Try to find matching employee (exact match after trim)
         const match = employeeList.find(emp =>
             emp.Name.trim() === name.trim()
         );
@@ -269,7 +302,8 @@ function renderPreview() {
 function setupSubmitButton() {
     btnSubmit.addEventListener('click', () => {
         if (!validateBeforeSubmit()) return;
-        if (!confirm(`ยืนยันเพิ่มผู้ใช้ ${matchedRows.filter(r => r.matched).length} คน?`)) return;
+        const count = matchedRows.filter(r => r.matched).length;
+        if (!confirm(`ยืนยันเพิ่มผู้ใช้ ${count} คน?`)) return;
         startBatchSubmit();
     });
 }
@@ -278,14 +312,21 @@ function updateSubmitButton() {
     const hasMatched = matchedRows.some(r => r.matched);
     const hasPassword = txtPassword.value.trim().length > 0;
     const hasGroup = ddlUserGrp.value !== '';
-    btnSubmit.disabled = !(hasMatched && hasPassword && hasGroup);
+    const hasSession = getSessionId().length > 10;
+    btnSubmit.disabled = !(hasMatched && hasPassword && hasGroup && hasSession);
 }
 
 // Listen to changes for enabling submit
 txtPassword.addEventListener('input', updateSubmitButton);
 ddlUserGrp.addEventListener('change', updateSubmitButton);
+txtSessionId.addEventListener('input', updateSubmitButton);
 
 function validateBeforeSubmit() {
+    if (!getSessionId()) {
+        alert('กรุณากรอก Session ID');
+        txtSessionId.focus();
+        return false;
+    }
     if (!ddlUserGrp.value) {
         alert('กรุณาเลือกกลุ่มผู้ใช้');
         ddlUserGrp.focus();
@@ -309,7 +350,12 @@ async function startBatchSubmit() {
     progressSection.style.display = '';
     progressSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     btnSubmit.disabled = true;
-    btnSubmit.textContent = 'กำลังดำเนินการ...';
+    btnSubmit.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+        กำลังดำเนินการ...
+    `;
 
     statTotal.textContent = total;
     statSuccess.textContent = '0';
@@ -334,7 +380,7 @@ async function startBatchSubmit() {
                 txtPassword: txtPassword.value.trim(),
             });
 
-            const res = await fetch(API.saveUser, {
+            const res = await apiFetch(API.saveUser, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -377,8 +423,14 @@ async function startBatchSubmit() {
         }
     }
 
-    addLog('info', `เสร็จสิ้น! สำเร็จ ${successCount} / ล้มเหลว ${failCount}`);
-    btnSubmit.textContent = 'เสร็จสิ้น';
+    addLog('info', `🎉 เสร็จสิ้น! สำเร็จ ${successCount} / ล้มเหลว ${failCount}`);
+    btnSubmit.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        เสร็จสิ้น
+    `;
 }
 
 // =============================================

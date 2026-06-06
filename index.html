@@ -43,6 +43,16 @@
                     <h2>ตั้งค่าการเพิ่มผู้ใช้</h2>
                 </div>
                 <div class="card-body">
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label for="txtSessionId">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                            </svg>
+                            Session ID <span style="color: var(--accent-danger); font-size: 0.75rem;">(จำเป็น)</span>
+                        </label>
+                        <input type="text" id="txtSessionId" class="form-control" placeholder="วาง ASP.NET_SessionId ที่นี่..." style="font-family: Consolas, Monaco, monospace; font-size: 0.85rem;">
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">📌 วิธีหา: เปิด HRMS > F12 > Application > Cookies > คัดลอกค่า ASP.NET_SessionId</p>
+                    </div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="ddlUserGrp">
@@ -55,7 +65,7 @@
                                 กลุ่มผู้ใช้
                             </label>
                             <select id="ddlUserGrp" class="form-control">
-                                <option value="">-- กำลังโหลด... --</option>
+                                <option value="">-- กรอก Session ID ก่อน --</option>
                             </select>
                         </div>
                         <div class="form-group">
