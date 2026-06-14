@@ -10,6 +10,7 @@ const API = {
     saveUser: '/api/SaveUser',
     saveEmpl: '/api/SaveEmpl',
     deleteEmpl: '/api/DeleteEmpl',
+    users: '/api/GetJSonDataUser',
 };
 
 // State
@@ -19,6 +20,8 @@ let cancelled = false;
 let employeeList = [];
 let parsedRows = [];
 let matchedRows = [];
+let userList = [];
+let userGroupsList = [];
 
 // DOM refs
 const appContainer = document.getElementById('appContainer');
@@ -198,20 +201,44 @@ function loadExistingEmployeesList() {
         <th class="text-center" style="width:50px;">#</th>
         <th>รหัสพนักงาน</th>
         <th>ชื่อพนักงาน</th>
+        <th>Username</th>
+        <th>กลุ่มผู้ใช้งาน</th>
     `;
 
     previewBody.innerHTML = '';
     employeeList.forEach((emp, i) => {
+        // หาข้อมูล user ที่ตรงกับชื่อพนักงาน
+        const user = userList.find(u => u.Name.trim() === emp.Name.trim());
+        
+        let displayGrpName = '-';
+        if (user) {
+            // Force re-mapping from userGroupsList because sometimes the API returns UserGrpName missing or incorrect
+            if (user.UserGrp && userGroupsList.length > 0) {
+                const grpCodes = user.UserGrp.split(',');
+                const grpNames = grpCodes.map(code => {
+                    const match = userGroupsList.find(g => g.Code === code.trim());
+                    return match ? match.Name : code;
+                });
+                displayGrpName = grpNames.join(', ');
+            } else if (user.UserGrpName) {
+                displayGrpName = user.UserGrpName;
+            } else {
+                displayGrpName = user.UserGrp || '-';
+            }
+        }
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="text-center text-muted">${i + 1}</td>
             <td class="font-monospace empl-code">${emp.Code}</td>
             <td>${esc(emp.Name)}</td>
+            <td class="font-monospace text-muted">${user && user.Username ? esc(user.Username) : '-'}</td>
+            <td>${displayGrpName !== '-' ? `<span class="badge bg-secondary">${esc(displayGrpName)}</span>` : '-'}</td>
         `;
         previewBody.appendChild(tr);
     });
-
-    recordCount.textContent = `พบ ${employeeList.length} คนในระบบ`;
+    
+    recordCount.textContent = `พนักงานในระบบ ${employeeList.length} คน`;
     previewSection.style.display = '';
 }
 
@@ -292,9 +319,9 @@ async function loadUserGroups() {
         const res = await apiFetch(API.userGroups);
         const json = await res.json();
         if (json.ResponseStatus === '1' && json.ResponseData) {
-            const groups = JSON.parse(json.ResponseData);
+            userGroupsList = JSON.parse(json.ResponseData);
             ddlUserGrp.innerHTML = '<option value="">-- เลือกกลุ่มผู้ใช้ --</option>';
-            groups.forEach(g => {
+            userGroupsList.forEach(g => {
                 const opt = document.createElement('option');
                 opt.value = g.Code;
                 opt.textContent = g.Name;
@@ -310,10 +337,42 @@ async function loadUserGroups() {
 
 async function loadEmployeeList() {
     try {
-        const res = await apiFetch(API.employees);
-        const json = await res.json();
-        if (json.ResponseStatus === '1' && json.ResponseData) {
-            employeeList = JSON.parse(json.ResponseData);
+        const [resEmpl, resUser, resGroup] = await Promise.all([
+            apiFetch(API.employees),
+            apiFetch(API.users).catch(() => null), // Optional
+            apiFetch(API.userGroups).catch(() => null) // Optional
+        ]);
+        
+        const jsonEmpl = await resEmpl.json();
+        if (jsonEmpl.ResponseStatus === '1' && jsonEmpl.ResponseData) {
+            employeeList = JSON.parse(jsonEmpl.ResponseData);
+        }
+        
+        if (resUser) {
+            const jsonUser = await resUser.json();
+            if (jsonUser.ResponseStatus === '1' && jsonUser.ResponseData) {
+                userList = JSON.parse(jsonUser.ResponseData);
+            }
+        }
+        
+        if (resGroup) {
+            const jsonGroup = await resGroup.json();
+            if (jsonGroup.ResponseStatus === '1' && jsonGroup.ResponseData) {
+                userGroupsList = JSON.parse(jsonGroup.ResponseData);
+                // Update dropdown if needed (if user hasn't called loadUserGroups separately)
+                if (ddlUserGrp && ddlUserGrp.options.length <= 1) {
+                    ddlUserGrp.innerHTML = '<option value="">-- เลือกกลุ่มผู้ใช้ --</option>';
+                    userGroupsList.forEach(g => {
+                        const opt = document.createElement('option');
+                        opt.value = g.Code;
+                        opt.textContent = g.Name;
+                        ddlUserGrp.appendChild(opt);
+                    });
+                }
+            }
+        }
+
+        if (employeeList.length > 0) {
             if (currentMode === 'delete') {
                 if (typeof loadDeleteList === 'function') loadDeleteList();
             } else {
@@ -321,7 +380,7 @@ async function loadEmployeeList() {
             }
         }
     } catch (err) {
-        console.error('Load employee list failed:', err);
+        console.error('Load employee/user list failed:', err);
     }
 }
 

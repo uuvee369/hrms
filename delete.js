@@ -14,17 +14,39 @@ function loadDeleteList() {
         <th class="text-center" style="width:50px;">#</th>
         <th>รหัสพนักงาน</th>
         <th>ชื่อพนักงาน</th>
+        <th>Username</th>
+        <th>กลุ่มผู้ใช้</th>
         <th style="width:120px;" class="text-center">จัดการ</th>
     `;
 
     previewBody.innerHTML = '';
     employeeList.forEach((emp, i) => {
+        const user = userList.find(u => u.Name.trim() === emp.Name.trim());
+        
+        let displayGrpName = '-';
+        if (user) {
+            if (user.UserGrp && userGroupsList.length > 0) {
+                const grpCodes = user.UserGrp.split(',');
+                const grpNames = grpCodes.map(code => {
+                    const match = userGroupsList.find(g => g.Code === code.trim());
+                    return match ? match.Name : code;
+                });
+                displayGrpName = grpNames.join(', ');
+            } else if (user.UserGrpName) {
+                displayGrpName = user.UserGrpName;
+            } else {
+                displayGrpName = user.UserGrp || '-';
+            }
+        }
+        
         const tr = document.createElement('tr');
         tr.id = `row-${i}`;
         tr.innerHTML = `
             <td class="text-center text-muted">${i + 1}</td>
             <td class="font-monospace empl-code">${emp.Code}</td>
             <td>${esc(emp.Name)}</td>
+            <td class="font-monospace text-muted">${user && user.Username ? esc(user.Username) : '-'}</td>
+            <td>${displayGrpName !== '-' ? `<span class="badge bg-secondary">${esc(displayGrpName)}</span>` : '-'}</td>
             <td id="status-${i}" class="text-center">
                 <button class="btn btn-sm btn-outline-danger btn-delete-single" 
                     data-index="${i}" data-code="${emp.Code}" data-name="${esc(emp.Name)}">
