@@ -233,8 +233,6 @@ function loadExistingEmployeesList() {
 function setupSubmitButton() {
     btnSubmit.addEventListener('click', (e) => {
         e.preventDefault();
-        
-        if (!sessionId) { alert('กรุณาเข้าสู่ระบบก่อน'); return; }
 
         let confirmText = '';
         let confirmAction = null;

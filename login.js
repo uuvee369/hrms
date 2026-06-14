@@ -2,7 +2,8 @@
 // Login / Logout (login.js)
 // =============================================
 
-const loginSection = document.getElementById('loginSection');
+const loginScreen = document.getElementById('loginScreen');
+const mainAppScreen = document.getElementById('mainAppScreen');
 const loggedInSection = document.getElementById('loggedInSection');
 const loggedInUser = document.getElementById('loggedInUser');
 const txtUserId = document.getElementById('txtUserId');
@@ -69,7 +70,9 @@ async function doLogin() {
 }
 
 function onLoginSuccess(userid, title) {
-    loginSection.style.display = 'none';
+    loginScreen.classList.remove('d-flex');
+    loginScreen.style.display = 'none';
+    mainAppScreen.style.display = '';
     loggedInSection.style.display = '';
     loggedInSection.style.cssText = '';
     loggedInUser.textContent = `${userid} — ${title || ''}`;
@@ -88,7 +91,9 @@ function onLoginSuccess(userid, title) {
 
 function doLogout() {
     sessionId = '';
-    loginSection.style.display = '';
+    loginScreen.classList.add('d-flex');
+    loginScreen.style.display = '';
+    mainAppScreen.style.display = 'none';
     loggedInSection.style.display = 'none';
     loggedInSection.style.cssText = 'display:none!important';
     txtUserId.value = '';

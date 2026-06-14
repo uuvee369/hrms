@@ -93,7 +93,7 @@ async function batchSubmitEmpl() {
             fail++; setStatus(i, 'fail'); addLog('fail', `${row.name} — ${err.message}`);
         }
         updateProgress(ok, fail, total);
-        if (i < matchedRows.length - 1) await sleep(500);
+        if (i < matchedRows.length - 1) await sleep(1000); // หน่วงเวลา 1 วินาที เพื่อสงสารเซิร์ฟเวอร์
     }
     finishBatch(ok, fail);
 }
@@ -130,7 +130,7 @@ async function batchSubmitUser() {
             fail++; setStatus(i, 'fail'); addLog('fail', `${row.name} (${row.username}) — ${err.message}`);
         }
         updateProgress(ok, fail, total);
-        if (i < matchedRows.length - 1) await sleep(300);
+        if (i < matchedRows.length - 1) await sleep(1000); // หน่วงเวลา 1 วินาที
     }
     finishBatch(ok, fail);
 }
