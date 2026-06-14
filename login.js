@@ -78,7 +78,7 @@ function onLoginSuccess(userid, title) {
     loggedInUser.textContent = `${userid} — ${title || ''}`;
     loginStatus.style.display = 'none';
 
-    if (currentMode === 'user') loadUserGroups();
+    if (currentMode === 'import') loadUserGroups();
     loadEmployeeList(); // Load for all modes so we can do duplicate detection
 
     // Save to sessionStorage

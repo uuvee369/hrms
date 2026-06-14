@@ -1,15 +1,16 @@
 // =============================================
 // Modes (modes.js)
-// เพิ่มพนักงาน (SaveEmpl) & เพิ่มผู้ใช้ (SaveUser)
+// นำเข้าข้อมูลแบบครบวงจร (Import Employees & Users)
 // =============================================
 
-function matchAndPreviewEmpl() {
+function matchAndPreviewImport() {
     matchedRows = parsedRows.map(row => {
-        const isDuplicate = employeeList.some(e => e.Name.trim() === row._emplName.trim());
+        const match = employeeList.find(e => e.Name.trim() === row._importName.trim());
         return { 
-            name: row._emplName, 
-            isDuplicate: isDuplicate, 
-            matched: true, 
+            name: row._importName, 
+            username: row._importUsername,
+            isDuplicate: !!match, 
+            oldCode: match ? match.Code : null,
             status: 'pending' 
         };
     });
@@ -17,154 +18,163 @@ function matchAndPreviewEmpl() {
     previewHead.innerHTML = `
         <th class="text-center" style="width:50px;">#</th>
         <th>ชื่อพนักงาน (จาก Excel)</th>
+        <th>Username (จาก Excel)</th>
         <th>วิเคราะห์ข้อมูล</th>
         <th style="width:120px;">สถานะ</th>
     `;
 
     previewBody.innerHTML = '';
     
-    let newCount = 0;
-    let dupCount = 0;
+    let newEmplCount = 0;
+    let oldEmplCount = 0;
+    let userCount = 0;
 
     matchedRows.forEach((row, i) => {
-        if (row.isDuplicate) dupCount++; else newCount++;
+        if (row.isDuplicate) oldEmplCount++; else newEmplCount++;
+        if (row.username) userCount++;
         
         const tr = document.createElement('tr');
         tr.id = `row-${i}`;
         
-        let analysisBadge = row.isDuplicate 
-            ? '<span class="badge bg-warning text-dark border border-warning"><i class="bi bi-exclamation-triangle me-1"></i> มีในระบบแล้ว</span>'
-            : '<span class="badge bg-success border border-success"><i class="bi bi-stars me-1"></i> พนักงานใหม่</span>';
+        let analysisBadge = '';
+        if (row.isDuplicate && row.username) {
+            analysisBadge = '<span class="badge bg-primary"><i class="bi bi-person-check me-1"></i> คนเก่า + สร้าง User</span>';
+        } else if (row.isDuplicate && !row.username) {
+            analysisBadge = '<span class="badge bg-secondary"><i class="bi bi-dash-circle me-1"></i> คนเก่า (ข้าม)</span>';
+        } else if (!row.isDuplicate && row.username) {
+            analysisBadge = '<span class="badge bg-success"><i class="bi bi-person-plus-fill me-1"></i> คนใหม่ + สร้าง User</span>';
+        } else {
+            analysisBadge = '<span class="badge bg-info text-dark"><i class="bi bi-person-plus me-1"></i> คนใหม่ (ไม่มี User)</span>';
+        }
 
         tr.innerHTML = `
             <td class="text-center text-muted">${i + 1}</td>
             <td class="fw-medium">${esc(row.name)}</td>
+            <td class="font-monospace text-muted">${row.username ? esc(row.username) : '-'}</td>
             <td>${analysisBadge}</td>
             <td id="status-${i}"><span class="badge badge-pending-custom">⏳ รอส่ง</span></td>
         `;
         previewBody.appendChild(tr);
     });
 
-    recordCount.innerHTML = `พบข้อมูลทั้งหมด ${matchedRows.length} รายการ <span class="ms-2 small text-secondary">(พนักงานใหม่ <b class="text-success">${newCount}</b>, ซ้ำ <b class="text-warning">${dupCount}</b>)</span>`;
+    recordCount.innerHTML = `พบข้อมูล ${matchedRows.length} รายการ <span class="ms-2 small text-secondary">(พนักงานใหม่ <b class="text-success">${newEmplCount}</b>, คนเก่า <b class="text-primary">${oldEmplCount}</b>, สร้าง User <b class="text-warning">${userCount}</b>)</span>`;
     previewSection.style.display = '';
     previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     updateSubmitButton();
 }
 
-function matchAndPreviewUser() {
-    matchedRows = parsedRows.map(row => {
-        const match = employeeList.find(e => e.Name.trim() === row.name.trim());
-        return { name: row.name, username: row.username, emplCode: match ? match.Code : null, matched: !!match, status: 'pending' };
-    });
-
-    previewHead.innerHTML = `
-        <th class="text-center" style="width:50px;">#</th>
-        <th>ชื่อ (จาก Excel)</th>
-        <th>Username</th>
-        <th>รหัสพนักงาน</th>
-        <th style="width:120px;">สถานะ</th>
-    `;
-
-    previewBody.innerHTML = '';
-    const totalMatched = matchedRows.filter(r => r.matched).length;
-
-    matchedRows.forEach((row, i) => {
-        const tr = document.createElement('tr');
-        tr.id = `row-${i}`;
-        tr.innerHTML = `
-            <td class="text-center text-muted">${i + 1}</td>
-            <td>${esc(row.name)}</td>
-            <td class="font-monospace">${esc(row.username)}</td>
-            <td>${row.matched ? `<span class="empl-code">${row.emplCode}</span>` : '<span class="text-danger small">ไม่พบ</span>'}</td>
-            <td id="status-${i}">${row.matched ? '<span class="badge badge-matched">✓ จับคู่แล้ว</span>' : '<span class="badge badge-unmatched">✗ ไม่ตรง</span>'}</td>
-        `;
-        previewBody.appendChild(tr);
-    });
-
-    recordCount.textContent = `${totalMatched}/${matchedRows.length} จับคู่สำเร็จ`;
-    previewSection.style.display = '';
-    previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    updateSubmitButton();
-}
-
-async function batchSubmitEmpl() {
-    const total = matchedRows.filter(r => !r.isDuplicate).length;
-    let ok = 0, fail = 0;
-    cancelled = false;
-    showProgress(total);
+async function batchSubmitImport() {
+    const totalEmplToCreate = matchedRows.filter(r => !r.isDuplicate).length;
+    const totalUsersToCreate = matchedRows.filter(r => r.username).length;
     
-    if (total === 0) {
-        addLog('warning', `ไม่มีพนักงานใหม่ที่ต้องเพิ่ม (ซ้ำทั้งหมด)`);
+    if (totalEmplToCreate === 0 && totalUsersToCreate === 0) {
+        addLog('warning', `ไม่มีข้อมูลที่ต้องนำเข้า`);
         finishBatch(0, 0);
         return;
     }
 
-    addLog('info', `เริ่มเพิ่มพนักงานใหม่ ${total} คน (ข้ามคนซ้ำ)...`);
-
-    for (let i = 0; i < matchedRows.length; i++) {
-        if (cancelled) { addLog('info', `ยกเลิกแล้ว (ส่งไป ${ok + fail}/${total})`); break; }
-        const row = matchedRows[i];
-        
-        if (row.isDuplicate) {
-            document.getElementById(`status-${i}`).innerHTML = '<span class="badge bg-secondary">ข้าม (ซ้ำ)</span>';
-            continue;
-        }
-
-        setStatus(i, 'sending');
-        try {
-            const res = await apiFetch(API.saveEmpl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ txtName: row.name }).toString(),
-            });
-            const json = await res.json();
-            if (json.ResponseStatus === '1') {
-                ok++; setStatus(i, 'success'); addLog('success', `${row.name} — สำเร็จ`);
-            } else {
-                fail++; setStatus(i, 'fail'); addLog('fail', `${row.name} — ${json.ResponseMsg || 'ล้มเหลว'}`);
-            }
-        } catch (err) {
-            fail++; setStatus(i, 'fail'); addLog('fail', `${row.name} — ${err.message}`);
-        }
-        updateProgress(ok, fail, total);
-        if (i < matchedRows.length - 1) await sleep(1000); // หน่วงเวลา 1 วินาที เพื่อสงสารเซิร์ฟเวอร์
-    }
-    finishBatch(ok, fail);
-}
-
-async function batchSubmitUser() {
-    const total = matchedRows.filter(r => r.matched).length;
     let ok = 0, fail = 0;
     cancelled = false;
-    showProgress(total);
-    addLog('info', `เริ่มเพิ่มผู้ใช้ ${total} คน...`);
-
-    for (let i = 0; i < matchedRows.length; i++) {
-        if (cancelled) { addLog('info', `ยกเลิกแล้ว (ส่งไป ${ok + fail}/${total})`); break; }
-        const row = matchedRows[i];
-        if (!row.matched) continue;
-        setStatus(i, 'sending');
-        try {
-            const res = await apiFetch(API.saveUser, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    txtCode: '', ddlUserGrp: ddlUserGrp.value,
-                    ddlEmpl: row.emplCode, txtUsername: row.username,
-                    txtPassword: txtPassword.value.trim(),
-                }).toString(),
-            });
-            const json = await res.json();
-            if (json.ResponseStatus === '1') {
-                ok++; setStatus(i, 'success'); addLog('success', `${row.name} (${row.username}) — สำเร็จ`);
-            } else {
-                fail++; setStatus(i, 'fail'); addLog('fail', `${row.name} (${row.username}) — ${json.ResponseMsg || 'ล้มเหลว'}`);
+    showProgress(matchedRows.length);
+    
+    // --- Phase 1: สร้างพนักงานใหม่ ---
+    if (totalEmplToCreate > 0) {
+        addLog('info', `[Phase 1] สร้างพนักงานใหม่ ${totalEmplToCreate} คน...`);
+        for (let i = 0; i < matchedRows.length; i++) {
+            if (cancelled) break;
+            const row = matchedRows[i];
+            
+            if (row.isDuplicate) continue; // ข้ามคนเก่า
+            
+            setStatus(i, 'sending');
+            try {
+                const res = await apiFetch(API.saveEmpl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ txtName: row.name }).toString(),
+                });
+                const json = await res.json();
+                if (json.ResponseStatus === '1') {
+                    if (!row.username) { ok++; setStatus(i, 'success'); }
+                    else setStatus(i, 'sending'); // รอสร้าง user
+                    addLog('success', `[พนักงาน] ${row.name} — สำเร็จ`);
+                } else {
+                    fail++; setStatus(i, 'fail'); addLog('fail', `[พนักงาน] ${row.name} — ${json.ResponseMsg || 'ล้มเหลว'}`);
+                    row.failedPhase1 = true; // Mark as failed so we don't try to create User later
+                }
+            } catch (err) {
+                fail++; setStatus(i, 'fail'); addLog('fail', `[พนักงาน] ${row.name} — ${err.message}`);
+                row.failedPhase1 = true;
             }
-        } catch (err) {
-            fail++; setStatus(i, 'fail'); addLog('fail', `${row.name} (${row.username}) — ${err.message}`);
+            updateProgress(ok, fail, matchedRows.length);
+            if (i < matchedRows.length - 1) await sleep(1000);
         }
-        updateProgress(ok, fail, total);
-        if (i < matchedRows.length - 1) await sleep(1000); // หน่วงเวลา 1 วินาที
     }
+
+    // --- Phase 2: โหลดข้อมูลอัพเดท (Refresh Employee List) ---
+    if (!cancelled && totalEmplToCreate > 0 && totalUsersToCreate > 0) {
+        addLog('info', `กำลังรีเฟรชฐานข้อมูลพนักงานเพื่อดึงรหัสพนักงานใหม่...`);
+        await loadEmployeeList(); // Wait for it to fetch new list
+    }
+
+    // --- Phase 3: สร้างผู้ใช้งาน ---
+    if (!cancelled && totalUsersToCreate > 0) {
+        addLog('info', `[Phase 2] สร้างบัญชีผู้ใช้งาน ${totalUsersToCreate} บัญชี...`);
+        for (let i = 0; i < matchedRows.length; i++) {
+            if (cancelled) break;
+            const row = matchedRows[i];
+            
+            if (!row.username || row.failedPhase1) continue;
+
+            let emplCode = row.oldCode;
+            if (!emplCode) {
+                // ค้นหารหัสพนักงานที่เพิ่งถูกสร้าง
+                const match = employeeList.find(e => e.Name.trim() === row.name.trim());
+                if (match) emplCode = match.Code;
+            }
+
+            if (!emplCode) {
+                fail++; setStatus(i, 'fail'); addLog('fail', `[ผู้ใช้] ${row.username} — ไม่พบรหัสพนักงานในระบบ (สร้างผู้ใช้ไม่ได้)`);
+                updateProgress(ok, fail, matchedRows.length);
+                continue;
+            }
+
+            setStatus(i, 'sending');
+            try {
+                const res = await apiFetch(API.saveUser, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        txtCode: '', ddlUserGrp: ddlUserGrp.value,
+                        ddlEmpl: emplCode, txtUsername: row.username,
+                        txtPassword: txtPassword.value.trim(),
+                    }).toString(),
+                });
+                const json = await res.json();
+                if (json.ResponseStatus === '1') {
+                    ok++; setStatus(i, 'success'); addLog('success', `[ผู้ใช้] ${row.username} — สำเร็จ`);
+                } else {
+                    fail++; setStatus(i, 'fail'); addLog('fail', `[ผู้ใช้] ${row.username} — ${json.ResponseMsg || 'ล้มเหลว'}`);
+                }
+            } catch (err) {
+                fail++; setStatus(i, 'fail'); addLog('fail', `[ผู้ใช้] ${row.username} — ${err.message}`);
+            }
+            updateProgress(ok, fail, matchedRows.length);
+            if (i < matchedRows.length - 1) await sleep(1000);
+        }
+    }
+
+    // สำหรับคนที่ข้าม
+    if (!cancelled) {
+        for (let i = 0; i < matchedRows.length; i++) {
+            const row = matchedRows[i];
+            if (row.isDuplicate && !row.username) {
+                document.getElementById(`status-${i}`).innerHTML = '<span class="badge bg-secondary">ข้าม</span>';
+                ok++; // นับเป็น success (skip)
+            }
+        }
+        updateProgress(ok, fail, matchedRows.length);
+    }
+
     finishBatch(ok, fail);
 }

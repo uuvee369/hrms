@@ -13,7 +13,7 @@ const API = {
 };
 
 // State
-let currentMode = 'empl';
+let currentMode = 'import';
 let sessionId = '';
 let cancelled = false;
 let employeeList = [];
@@ -25,10 +25,9 @@ const appContainer = document.getElementById('appContainer');
 const pageTitle = document.getElementById('pageTitle');
 const pageSubtitle = document.getElementById('pageSubtitle');
 const settingsTitle = document.getElementById('settingsTitle');
-const tabEmpl = document.getElementById('tabEmpl');
-const tabUser = document.getElementById('tabUser');
+const tabImport = document.getElementById('tabImport');
 const tabDelete = document.getElementById('tabDelete');
-const userOnlyFields = document.getElementById('userOnlyFields');
+const importSettingsCard = document.getElementById('importSettingsCard');
 const uploadCard = document.getElementById('uploadCard');
 
 const ddlUserGrp = document.getElementById('ddlUserGrp');
@@ -81,50 +80,39 @@ document.addEventListener('DOMContentLoaded', () => {
 // Tabs
 // =============================================
 function setupTabs() {
-    tabEmpl.addEventListener('click', () => switchMode('empl'));
-    tabUser.addEventListener('click', () => switchMode('user'));
+    tabImport.addEventListener('click', () => switchMode('import'));
     tabDelete.addEventListener('click', () => switchMode('delete'));
 }
 
 function switchMode(mode) {
     currentMode = mode;
-    tabEmpl.classList.toggle('active', mode === 'empl');
-    tabUser.classList.toggle('active', mode === 'user');
+    tabImport.classList.toggle('active', mode === 'import');
     tabDelete.classList.toggle('active', mode === 'delete');
 
-    userOnlyFields.style.display = mode === 'user' ? '' : 'none';
+    importSettingsCard.style.display = mode === 'import' ? '' : 'none';
     uploadCard.style.display = mode === 'delete' ? 'none' : '';
 
     resetFileState();
 
-    if (mode === 'empl') {
+    if (mode === 'import') {
         document.getElementById('btnSubmit').parentElement.style.display = 'none'; // ซ่อนจนกว่าจะมีการนำเข้า
-        pageTitle.textContent = 'HRMS - เพิ่มพนักงาน';
-        pageSubtitle.textContent = 'ดูรายชื่อและนำเข้ารายชื่อพนักงานจากไฟล์ Excel';
-        settingsTitle.textContent = 'ตั้งค่า';
-        dropzoneHint.innerHTML = 'รองรับ .xlsx, .xls, .csv — คอลัมน์: <strong>ชื่อพนักงาน</strong>';
-        uploadExplanation.innerHTML = 'กรุณาเตรียมไฟล์ Excel ให้มีคอลัมน์ "ชื่อพนักงาน" ระบบจะทำการอ่านข้อมูลและเพิ่มรายชื่อใหม่เข้าไปในระบบโดยอัตโนมัติ <br><small class="text-warning"><i class="bi bi-info-circle"></i> รายชื่อที่มีอยู่ในระบบแล้วจะถูกตัดออก (ข้าม) โดยอัตโนมัติ</small>';
-        btnSubmitText.textContent = 'เพิ่มพนักงานทั้งหมด';
+        pageTitle.textContent = 'HRMS - นำเข้าข้อมูลครบวงจร';
+        pageSubtitle.textContent = 'เพิ่มพนักงานและสร้างบัญชีผู้ใช้งานได้ในครั้งเดียวจากไฟล์ Excel';
+        settingsTitle.textContent = 'ตั้งค่ารหัสผ่านสำหรับพนักงานใหม่ (เผื่อไว้ถ้าไฟล์มี Username)';
+        document.getElementById('importSettingsCard').style.display = '';
+        dropzoneHint.innerHTML = 'รองรับ .xlsx, .xls, .csv — คอลัมน์: <strong>name</strong> (บังคับ), <strong>username</strong> (ทางเลือก)';
+        uploadExplanation.innerHTML = `กรุณาเตรียมไฟล์ Excel ให้มีคอลัมน์ "name" เป็นอย่างน้อย<br>
+            <ul class="text-start mt-2 mb-0 small">
+                <li><i class="bi bi-person-plus text-success"></i> <strong>พนักงานใหม่:</strong> สร้างรายชื่อให้ + สร้าง Username ให้อัตโนมัติ (ถ้าใส่มา)</li>
+                <li><i class="bi bi-person-check text-primary"></i> <strong>พนักงานเก่า:</strong> ข้ามการสร้างชื่อซ้ำ + สร้าง Username ให้แทน (ถ้าใส่มา)</li>
+                <li><i class="bi bi-info-circle text-warning"></i> ถ้าคอลัมน์ Username ว่างไว้ ระบบจะสร้างแค่ชื่อพนักงานให้เท่านั้น</li>
+            </ul>`;
+        btnSubmitText.textContent = 'เริ่มนำเข้าข้อมูลทั้งหมด';
         btnSubmit.className = 'btn btn-primary';
         previewTitle.textContent = 'รายชื่อพนักงานในระบบ';
         btnShowUpload.style.display = '';
         if (sessionId) {
-            if (employeeList.length === 0) loadEmployeeList();
-            else loadExistingEmployeesList();
-        }
-    } else if (mode === 'user') {
-        document.getElementById('btnSubmit').parentElement.style.display = 'none'; // ซ่อนจนกว่าจะมีการนำเข้า
-        pageTitle.textContent = 'HRMS - เพิ่มผู้ใช้งาน';
-        pageSubtitle.textContent = 'ดูผู้ใช้งานและนำเข้าผู้ใช้จากไฟล์ Excel';
-        settingsTitle.textContent = 'ตั้งค่าการเพิ่มผู้ใช้';
-        dropzoneHint.innerHTML = 'รองรับ .xlsx, .xls, .csv — คอลัมน์: <strong>name</strong>, <strong>username</strong>';
-        uploadExplanation.textContent = 'กรุณาเตรียมไฟล์ Excel ให้มีคอลัมน์ "name" และ "username" ระบบจะจับคู่ชื่อกับพนักงานที่มีในระบบ และสร้างผู้ใช้งานใหม่ให้';
-        btnSubmitText.textContent = 'เพิ่มผู้ใช้ทั้งหมด';
-        btnSubmit.className = 'btn btn-primary';
-        previewTitle.textContent = 'รายชื่อพนักงานและผู้ใช้ในระบบ';
-        btnShowUpload.style.display = '';
-        if (sessionId) { 
-            loadUserGroups(); 
+            loadUserGroups();
             if (employeeList.length === 0) loadEmployeeList();
             else loadExistingEmployeesList();
         }
@@ -237,15 +225,14 @@ function setupSubmitButton() {
         let confirmText = '';
         let confirmAction = null;
 
-        if (currentMode === 'empl') {
-            confirmText = `ยืนยันเพิ่มพนักงาน ${matchedRows.length} คน?`;
-            confirmAction = batchSubmitEmpl;
-        } else if (currentMode === 'user') {
-            if (!ddlUserGrp.value) { alert('กรุณาเลือกกลุ่มผู้ใช้'); return; }
-            if (!txtPassword.value.trim()) { alert('กรุณากำหนดรหัสผ่าน'); return; }
-            const count = matchedRows.filter(r => r.matched).length;
-            confirmText = `ยืนยันเพิ่มผู้ใช้ ${count} คน?`;
-            confirmAction = batchSubmitUser;
+        if (currentMode === 'import') {
+            const willCreateUsers = matchedRows.some(r => r.username);
+            if (willCreateUsers) {
+                if (!ddlUserGrp.value) { alert('มีรายชื่อที่ระบุ Username กรุณาเลือกกลุ่มผู้ใช้'); return; }
+                if (!txtPassword.value.trim()) { alert('มีรายชื่อที่ระบุ Username กรุณากำหนดรหัสผ่านส่วนกลาง'); return; }
+            }
+            confirmText = `ยืนยันนำเข้าข้อมูลพนักงาน ${matchedRows.length} คน?`;
+            confirmAction = batchSubmitImport;
         }
 
         if (confirmText && confirmAction) {
@@ -342,8 +329,7 @@ async function loadEmployeeList() {
 // Preview dispatcher
 // =============================================
 function matchAndPreview() {
-    if (currentMode === 'empl') matchAndPreviewEmpl();
-    else if (currentMode === 'user') matchAndPreviewUser();
+    if (currentMode === 'import') matchAndPreviewImport();
 }
 
 // =============================================

@@ -82,11 +82,8 @@
 
             <!-- Tab Switcher -->
             <div class="btn-group w-100 mb-4" role="group">
-                <button type="button" class="btn btn-outline-light tab-btn active" data-mode="empl" id="tabEmpl">
-                    <i class="bi bi-person-plus me-1"></i> เพิ่มพนักงาน
-                </button>
-                <button type="button" class="btn btn-outline-light tab-btn" data-mode="user" id="tabUser">
-                    <i class="bi bi-people me-1"></i> เพิ่มผู้ใช้
+                <button type="button" class="btn btn-outline-light tab-btn active" data-mode="import" id="tabImport">
+                    <i class="bi bi-cloud-arrow-up me-1"></i> นำเข้าข้อมูลครบวงจร
                 </button>
                 <button type="button" class="btn btn-outline-light tab-btn" data-mode="delete" id="tabDelete">
                     <i class="bi bi-person-dash me-1"></i> ลบพนักงาน
@@ -94,12 +91,12 @@
             </div>
 
             <!-- Step 1: Settings -->
-            <div class="card border-secondary mb-3 user-only" id="userOnlyFields" style="display: none;">
+            <div class="card border-secondary mb-3 import-settings" id="importSettingsCard">
                 <div class="card-header d-flex align-items-center gap-2">
                     <span class="badge rounded-pill bg-primary">1</span>
-                    <h2 class="h6 mb-0 fw-semibold" id="settingsTitle">ตั้งค่าการเพิ่มผู้ใช้</h2>
+                    <h2 class="h6 mb-0 fw-semibold" id="settingsTitle">ตั้งค่ารหัสผ่านสำหรับพนักงานใหม่ (เผื่อไว้ถ้าไฟล์มี Username)</h2>
                 </div>
-                <div class="card-body">
+                <div class="card-body row g-3">
                     <div class="col-md-6">
                         <label for="ddlUserGrp" class="form-label small text-secondary">
                             <i class="bi bi-people me-1"></i> กลุ่มผู้ใช้

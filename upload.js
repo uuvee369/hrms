@@ -60,15 +60,16 @@ function handleFile(file) {
             const firstRow = parsedRows[0];
             const cols = Object.keys(firstRow);
 
-            if (currentMode === 'empl') {
-                const nameCol = findColumn(cols, ['ชื่อพนักงาน', 'name', 'ชื่อ']);
-                if (!nameCol) { alert(`ไม่พบคอลัมน์ "ชื่อพนักงาน"\nคอลัมน์ที่พบ: ${cols.join(', ')}`); return; }
-                parsedRows = parsedRows.map(r => ({ ...r, _emplName: r[nameCol] || '' }));
-            } else if (currentMode === 'user') {
-                if (!('name' in firstRow) || !('username' in firstRow)) {
-                    alert(`ไม่พบคอลัมน์ "name" หรือ "username"\nคอลัมน์ที่พบ: ${cols.join(', ')}`);
-                    return;
-                }
+            if (currentMode === 'import') {
+                const nameCol = findColumn(cols, ['name', 'ชื่อพนักงาน', 'ชื่อ', 'employee name']);
+                if (!nameCol) { alert(`ไม่พบคอลัมน์ชื่อพนักงาน (name)\nคอลัมน์ที่พบ: ${cols.join(', ')}`); return; }
+                
+                const usernameCol = findColumn(cols, ['username', 'ชื่อผู้ใช้', 'user']);
+                
+                parsedRows = parsedRows.map(r => ({ 
+                    _importName: r[nameCol] || '',
+                    _importUsername: usernameCol ? (r[usernameCol] || '') : ''
+                }));
             }
             matchAndPreview();
         } catch (err) {
