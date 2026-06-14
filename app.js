@@ -103,7 +103,7 @@ function switchMode(mode) {
         pageSubtitle.textContent = 'ดูรายชื่อและนำเข้ารายชื่อพนักงานจากไฟล์ Excel';
         settingsTitle.textContent = 'ตั้งค่า';
         dropzoneHint.innerHTML = 'รองรับ .xlsx, .xls, .csv — คอลัมน์: <strong>ชื่อพนักงาน</strong>';
-        uploadExplanation.textContent = 'กรุณาเตรียมไฟล์ Excel ให้มีคอลัมน์ "ชื่อพนักงาน" ระบบจะทำการอ่านข้อมูลและเพิ่มรายชื่อใหม่เข้าไปในระบบโดยอัตโนมัติ';
+        uploadExplanation.innerHTML = 'กรุณาเตรียมไฟล์ Excel ให้มีคอลัมน์ "ชื่อพนักงาน" ระบบจะทำการอ่านข้อมูลและเพิ่มรายชื่อใหม่เข้าไปในระบบโดยอัตโนมัติ <br><small class="text-warning"><i class="bi bi-info-circle"></i> รายชื่อที่มีอยู่ในระบบแล้วจะถูกตัดออก (ข้าม) โดยอัตโนมัติ</small>';
         btnSubmitText.textContent = 'เพิ่มพนักงานทั้งหมด';
         btnSubmit.className = 'btn btn-primary';
         previewTitle.textContent = 'รายชื่อพนักงานในระบบ';

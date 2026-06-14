@@ -88,15 +88,28 @@ function matchAndPreviewUser() {
 }
 
 async function batchSubmitEmpl() {
-    const total = matchedRows.length;
+    const total = matchedRows.filter(r => !r.isDuplicate).length;
     let ok = 0, fail = 0;
     cancelled = false;
     showProgress(total);
-    addLog('info', `เริ่มเพิ่มพนักงาน ${total} คน...`);
+    
+    if (total === 0) {
+        addLog('warning', `ไม่มีพนักงานใหม่ที่ต้องเพิ่ม (ซ้ำทั้งหมด)`);
+        finishBatch(0, 0);
+        return;
+    }
+
+    addLog('info', `เริ่มเพิ่มพนักงานใหม่ ${total} คน (ข้ามคนซ้ำ)...`);
 
     for (let i = 0; i < matchedRows.length; i++) {
         if (cancelled) { addLog('info', `ยกเลิกแล้ว (ส่งไป ${ok + fail}/${total})`); break; }
         const row = matchedRows[i];
+        
+        if (row.isDuplicate) {
+            document.getElementById(`status-${i}`).innerHTML = '<span class="badge bg-secondary">ข้าม (ซ้ำ)</span>';
+            continue;
+        }
+
         setStatus(i, 'sending');
         try {
             const res = await apiFetch(API.saveEmpl, {
