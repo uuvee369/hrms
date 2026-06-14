@@ -78,8 +78,8 @@ function onLoginSuccess(userid, title) {
     loggedInUser.textContent = `${userid} — ${title || ''}`;
     loginStatus.style.display = 'none';
 
-    if (currentMode === 'user') { loadUserGroups(); loadEmployeeList(); }
-    if (currentMode === 'delete') loadEmployeeList();
+    if (currentMode === 'user') loadUserGroups();
+    loadEmployeeList(); // Load for all modes so we can do duplicate detection
 
     // Save to sessionStorage
     sessionStorage.setItem('hrms_session', sessionId);

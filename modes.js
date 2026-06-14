@@ -4,27 +4,48 @@
 // =============================================
 
 function matchAndPreviewEmpl() {
-    matchedRows = parsedRows.map(r => ({ name: r._emplName, matched: true, status: 'pending' }));
+    matchedRows = parsedRows.map(row => {
+        const isDuplicate = employeeList.some(e => e.Name.trim() === row._emplName.trim());
+        return { 
+            name: row._emplName, 
+            isDuplicate: isDuplicate, 
+            matched: true, 
+            status: 'pending' 
+        };
+    });
 
     previewHead.innerHTML = `
         <th class="text-center" style="width:50px;">#</th>
-        <th>ชื่อพนักงาน</th>
+        <th>ชื่อพนักงาน (จาก Excel)</th>
+        <th>วิเคราะห์ข้อมูล</th>
         <th style="width:120px;">สถานะ</th>
     `;
 
     previewBody.innerHTML = '';
+    
+    let newCount = 0;
+    let dupCount = 0;
+
     matchedRows.forEach((row, i) => {
+        if (row.isDuplicate) dupCount++; else newCount++;
+        
         const tr = document.createElement('tr');
         tr.id = `row-${i}`;
+        
+        let analysisBadge = row.isDuplicate 
+            ? '<span class="badge bg-warning text-dark border border-warning"><i class="bi bi-exclamation-triangle me-1"></i> มีในระบบแล้ว</span>'
+            : '<span class="badge bg-success border border-success"><i class="bi bi-stars me-1"></i> พนักงานใหม่</span>';
+
         tr.innerHTML = `
             <td class="text-center text-muted">${i + 1}</td>
-            <td>${esc(row.name)}</td>
+            <td class="fw-medium">${esc(row.name)}</td>
+            <td>${analysisBadge}</td>
             <td id="status-${i}"><span class="badge badge-pending-custom">⏳ รอส่ง</span></td>
         `;
         previewBody.appendChild(tr);
     });
 
-    recordCount.textContent = `${matchedRows.length} รายการ`;
+    recordCount.innerHTML = `พบข้อมูลทั้งหมด ${matchedRows.length} รายการ <span class="ms-2 small text-secondary">(พนักงานใหม่ <b class="text-success">${newCount}</b>, ซ้ำ <b class="text-warning">${dupCount}</b>)</span>`;
     previewSection.style.display = '';
     previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     updateSubmitButton();
