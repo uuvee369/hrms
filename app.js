@@ -1,34 +1,59 @@
 // =============================================
-// HRMS Batch User Import - Application Logic
+// HRMS Batch Import - Core (app.js)
+// State, DOM, Init, Tabs, Helpers, API, Progress
 // =============================================
 
-// API ยิงผ่าน Python proxy server (localhost:5000)
 const API = {
+    login: '/api/login',
     userGroups: '/api/GetJSonDataUserGrp',
     employees: '/api/GetJSonEmplList',
     saveUser: '/api/SaveUser',
+    saveEmpl: '/api/SaveEmpl',
+    deleteEmpl: '/api/DeleteEmpl',
 };
 
 // State
+let currentMode = 'empl';
+let sessionId = '';
+let cancelled = false;
 let employeeList = [];
 let parsedRows = [];
 let matchedRows = [];
 
-// DOM Elements
-const txtSessionId = document.getElementById('txtSessionId');
+// DOM refs
+const appContainer = document.getElementById('appContainer');
+const pageTitle = document.getElementById('pageTitle');
+const pageSubtitle = document.getElementById('pageSubtitle');
+const settingsTitle = document.getElementById('settingsTitle');
+const tabEmpl = document.getElementById('tabEmpl');
+const tabUser = document.getElementById('tabUser');
+const tabDelete = document.getElementById('tabDelete');
+const userOnlyFields = document.getElementById('userOnlyFields');
+const uploadCard = document.getElementById('uploadCard');
+
 const ddlUserGrp = document.getElementById('ddlUserGrp');
 const txtPassword = document.getElementById('txtPassword');
 const togglePassword = document.getElementById('togglePassword');
+const eyeIcon = document.getElementById('eyeIcon');
 const dropzone = document.getElementById('dropzone');
+const dropzoneHint = document.getElementById('dropzoneHint');
 const fileInput = document.getElementById('fileInput');
 const fileInfo = document.getElementById('fileInfo');
 const fileName = document.getElementById('fileName');
 const fileSize = document.getElementById('fileSize');
 const removeFile = document.getElementById('removeFile');
 const previewSection = document.getElementById('previewSection');
+const previewHead = document.getElementById('previewHead');
 const previewBody = document.getElementById('previewBody');
+const txtSearchTable = document.getElementById('txtSearchTable');
 const recordCount = document.getElementById('recordCount');
 const btnSubmit = document.getElementById('btnSubmit');
+const btnSubmitText = document.getElementById('btnSubmitText');
+const btnCancel = document.getElementById('btnCancel');
+const btnShowUpload = document.getElementById('btnShowUpload');
+const btnHideUpload = document.getElementById('btnHideUpload');
+const uploadExplanation = document.getElementById('uploadExplanation');
+const previewTitle = document.getElementById('previewTitle');
 const progressSection = document.getElementById('progressSection');
 const progressBarFill = document.getElementById('progressBarFill');
 const progressText = document.getElementById('progressText');
@@ -39,47 +64,240 @@ const logEntries = document.getElementById('logEntries');
 const logWrapper = document.getElementById('logWrapper');
 
 // =============================================
-// Initialize
+// Init
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
-    setupSessionIdListener();
+    setupTabs();
+    setupLogin();
     setupDropzone();
     setupPasswordToggle();
     setupSubmitButton();
+    setupCancelButton();
     setupRemoveFile();
+    switchMode('empl');
 });
 
 // =============================================
-// Session ID — เมื่อกรอกแล้วจะโหลดข้อมูลอัตโนมัติ
+// Tabs
 // =============================================
-let sessionLoadTimeout = null;
+function setupTabs() {
+    tabEmpl.addEventListener('click', () => switchMode('empl'));
+    tabUser.addEventListener('click', () => switchMode('user'));
+    tabDelete.addEventListener('click', () => switchMode('delete'));
+}
 
-function setupSessionIdListener() {
-    txtSessionId.addEventListener('input', () => {
-        clearTimeout(sessionLoadTimeout);
-        sessionLoadTimeout = setTimeout(() => {
-            const sid = txtSessionId.value.trim();
-            if (sid.length > 10) {
-                loadUserGroups();
-                loadEmployeeList();
-            }
-        }, 500); // debounce 500ms
+function switchMode(mode) {
+    currentMode = mode;
+    tabEmpl.classList.toggle('active', mode === 'empl');
+    tabUser.classList.toggle('active', mode === 'user');
+    tabDelete.classList.toggle('active', mode === 'delete');
+
+    userOnlyFields.style.display = mode === 'user' ? '' : 'none';
+    uploadCard.style.display = mode === 'delete' ? 'none' : '';
+
+    resetFileState();
+
+    if (mode === 'empl') {
+        document.getElementById('btnSubmit').parentElement.style.display = 'none'; // ซ่อนจนกว่าจะมีการนำเข้า
+        pageTitle.textContent = 'HRMS - เพิ่มพนักงาน';
+        pageSubtitle.textContent = 'ดูรายชื่อและนำเข้ารายชื่อพนักงานจากไฟล์ Excel';
+        settingsTitle.textContent = 'ตั้งค่า';
+        dropzoneHint.innerHTML = 'รองรับ .xlsx, .xls, .csv — คอลัมน์: <strong>ชื่อพนักงาน</strong>';
+        uploadExplanation.textContent = 'กรุณาเตรียมไฟล์ Excel ให้มีคอลัมน์ "ชื่อพนักงาน" ระบบจะทำการอ่านข้อมูลและเพิ่มรายชื่อใหม่เข้าไปในระบบโดยอัตโนมัติ';
+        btnSubmitText.textContent = 'เพิ่มพนักงานทั้งหมด';
+        btnSubmit.className = 'btn btn-primary';
+        previewTitle.textContent = 'รายชื่อพนักงานในระบบ';
+        btnShowUpload.style.display = '';
+        if (sessionId) {
+            if (employeeList.length === 0) loadEmployeeList();
+            else loadExistingEmployeesList();
+        }
+    } else if (mode === 'user') {
+        document.getElementById('btnSubmit').parentElement.style.display = 'none'; // ซ่อนจนกว่าจะมีการนำเข้า
+        pageTitle.textContent = 'HRMS - เพิ่มผู้ใช้งาน';
+        pageSubtitle.textContent = 'ดูผู้ใช้งานและนำเข้าผู้ใช้จากไฟล์ Excel';
+        settingsTitle.textContent = 'ตั้งค่าการเพิ่มผู้ใช้';
+        dropzoneHint.innerHTML = 'รองรับ .xlsx, .xls, .csv — คอลัมน์: <strong>name</strong>, <strong>username</strong>';
+        uploadExplanation.textContent = 'กรุณาเตรียมไฟล์ Excel ให้มีคอลัมน์ "name" และ "username" ระบบจะจับคู่ชื่อกับพนักงานที่มีในระบบ และสร้างผู้ใช้งานใหม่ให้';
+        btnSubmitText.textContent = 'เพิ่มผู้ใช้ทั้งหมด';
+        btnSubmit.className = 'btn btn-primary';
+        previewTitle.textContent = 'รายชื่อพนักงานและผู้ใช้ในระบบ';
+        btnShowUpload.style.display = '';
+        if (sessionId) { 
+            loadUserGroups(); 
+            if (employeeList.length === 0) loadEmployeeList();
+            else loadExistingEmployeesList();
+        }
+    } else if (mode === 'delete') {
+        pageTitle.textContent = 'HRMS - ลบพนักงาน';
+        pageSubtitle.textContent = 'เลือกพนักงานจากระบบเพื่อลบทีละคน';
+        settingsTitle.textContent = 'ตั้งค่า';
+        document.getElementById('btnSubmit').parentElement.style.display = 'none'; // ซ่อนปุ่ม submit ใหญ่
+        previewTitle.textContent = 'รายชื่อพนักงานในระบบ';
+        btnShowUpload.style.display = 'none';
+        if (sessionId) {
+            if (employeeList.length === 0) loadEmployeeList();
+            else loadDeleteList();
+        }
+    }
+
+    updateSubmitButton();
+}
+
+function resetFileState() {
+    fileInput.value = '';
+    fileInfo.classList.add('d-none');
+    fileInfo.style.display = '';
+    dropzone.style.display = '';
+    previewSection.style.display = 'none';
+    progressSection.style.display = 'none';
+    if (txtSearchTable) txtSearchTable.value = ''; // Reset search
+    parsedRows = [];
+    matchedRows = [];
+    btnSubmit.disabled = true;
+}
+
+// =============================================
+// Password Toggle
+// =============================================
+function setupPasswordToggle() {
+    togglePassword.addEventListener('click', () => {
+        const isPassword = txtPassword.type === 'password';
+        txtPassword.type = isPassword ? 'text' : 'password';
+        eyeIcon.className = isPassword ? 'bi bi-eye-slash' : 'bi bi-eye';
+    });
+
+    // Search filter for table
+    if (txtSearchTable) {
+        txtSearchTable.addEventListener('input', (e) => {
+            const filter = e.target.value.toLowerCase();
+            const rows = previewBody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+    }
+
+    if (btnShowUpload) {
+        btnShowUpload.addEventListener('click', () => {
+            uploadCard.style.display = '';
+            uploadCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
+
+    if (btnHideUpload) {
+        btnHideUpload.addEventListener('click', () => {
+            uploadCard.style.display = 'none';
+        });
+    }
+}
+
+// โชว์ตารางรายชื่อพนักงานปกติ (ไม่ลบ ไม่นำเข้า)
+function loadExistingEmployeesList() {
+    if (parsedRows.length > 0) {
+        // ถ้ามีการอัพโหลดไฟล์แล้ว ให้ข้ามไปโชว์พรีวิวแทน
+        if (typeof matchAndPreview === 'function') matchAndPreview();
+        return;
+    }
+
+    if (employeeList.length === 0) {
+        previewSection.style.display = 'none';
+        return;
+    }
+
+    previewHead.innerHTML = `
+        <th class="text-center" style="width:50px;">#</th>
+        <th>รหัสพนักงาน</th>
+        <th>ชื่อพนักงาน</th>
+    `;
+
+    previewBody.innerHTML = '';
+    employeeList.forEach((emp, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="text-center text-muted">${i + 1}</td>
+            <td class="font-monospace empl-code">${emp.Code}</td>
+            <td>${esc(emp.Name)}</td>
+        `;
+        previewBody.appendChild(tr);
+    });
+
+    recordCount.textContent = `พบ ${employeeList.length} คนในระบบ`;
+    previewSection.style.display = '';
+}
+
+// =============================================
+// Submit
+// =============================================
+function setupSubmitButton() {
+    btnSubmit.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        if (!sessionId) { alert('กรุณาเข้าสู่ระบบก่อน'); return; }
+
+        let confirmText = '';
+        let confirmAction = null;
+
+        if (currentMode === 'empl') {
+            confirmText = `ยืนยันเพิ่มพนักงาน ${matchedRows.length} คน?`;
+            confirmAction = batchSubmitEmpl;
+        } else if (currentMode === 'user') {
+            if (!ddlUserGrp.value) { alert('กรุณาเลือกกลุ่มผู้ใช้'); return; }
+            if (!txtPassword.value.trim()) { alert('กรุณากำหนดรหัสผ่าน'); return; }
+            const count = matchedRows.filter(r => r.matched).length;
+            confirmText = `ยืนยันเพิ่มผู้ใช้ ${count} คน?`;
+            confirmAction = batchSubmitUser;
+        }
+
+        if (confirmText && confirmAction) {
+            document.getElementById('submitModalText').textContent = confirmText;
+            const modalEl = document.getElementById('submitConfirmModal');
+            const modal = new bootstrap.Modal(modalEl);
+            
+            const btnConfirm = document.getElementById('btnConfirmSubmit');
+            const newBtnConfirm = btnConfirm.cloneNode(true);
+            btnConfirm.parentNode.replaceChild(newBtnConfirm, btnConfirm);
+            
+            newBtnConfirm.addEventListener('click', () => {
+                newBtnConfirm.blur();
+                modal.hide();
+                confirmAction();
+            });
+            
+            modal.show();
+        }
     });
 }
 
-function getSessionId() {
-    return txtSessionId.value.trim();
+function updateSubmitButton() {
+    const loggedIn = !!sessionId;
+    if (currentMode === 'empl') {
+        btnSubmit.disabled = !(loggedIn && matchedRows.length > 0);
+    } else if (currentMode === 'user') {
+        btnSubmit.disabled = !(loggedIn && matchedRows.some(r => r.matched) && txtPassword.value.trim() && ddlUserGrp.value);
+    }
+}
+
+txtPassword.addEventListener('input', updateSubmitButton);
+ddlUserGrp.addEventListener('change', updateSubmitButton);
+
+// =============================================
+// Cancel
+// =============================================
+function setupCancelButton() {
+    btnCancel.addEventListener('click', () => {
+        cancelled = true;
+        btnCancel.disabled = true;
+        btnCancel.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> กำลังหยุด...';
+    });
 }
 
 // =============================================
-// API Calls (ผ่าน proxy)
+// API
 // =============================================
 async function apiFetch(url, options = {}) {
-    const sid = getSessionId();
-    const headers = {
-        'X-Session-Id': sid,
-        ...(options.headers || {}),
-    };
+    const headers = { 'X-Session-Id': sessionId, ...(options.headers || {}) };
     return fetch(url, { ...options, headers });
 }
 
@@ -98,11 +316,10 @@ async function loadUserGroups() {
                 ddlUserGrp.appendChild(opt);
             });
         } else {
-            ddlUserGrp.innerHTML = '<option value="">-- Session หมดอายุ ลองใหม่ --</option>';
+            ddlUserGrp.innerHTML = '<option value="">-- Session หมดอายุ --</option>';
         }
     } catch (err) {
-        console.error('โหลดกลุ่มผู้ใช้ล้มเหลว:', err);
-        ddlUserGrp.innerHTML = '<option value="">-- โหลดล้มเหลว (เช็ค server) --</option>';
+        ddlUserGrp.innerHTML = '<option value="">-- โหลดล้มเหลว --</option>';
     }
 }
 
@@ -112,350 +329,90 @@ async function loadEmployeeList() {
         const json = await res.json();
         if (json.ResponseStatus === '1' && json.ResponseData) {
             employeeList = JSON.parse(json.ResponseData);
-            console.log(`✅ โหลดรายชื่อพนักงาน ${employeeList.length} คน`);
-            // Re-match if data is already loaded
-            if (parsedRows.length > 0) {
-                matchAndPreview();
+            if (currentMode === 'delete') {
+                if (typeof loadDeleteList === 'function') loadDeleteList();
+            } else {
+                loadExistingEmployeesList();
             }
         }
     } catch (err) {
-        console.error('โหลดรายชื่อพนักงานล้มเหลว:', err);
+        console.error('Load employee list failed:', err);
     }
 }
 
 // =============================================
-// Password Toggle
-// =============================================
-function setupPasswordToggle() {
-    togglePassword.addEventListener('click', () => {
-        const type = txtPassword.type === 'password' ? 'text' : 'password';
-        txtPassword.type = type;
-        const eyeIcon = document.getElementById('eyeIcon');
-        if (type === 'text') {
-            eyeIcon.innerHTML = `
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
-            `;
-        } else {
-            eyeIcon.innerHTML = `
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-            `;
-        }
-    });
-}
-
-// =============================================
-// Dropzone & File Upload
-// =============================================
-function setupDropzone() {
-    dropzone.addEventListener('click', () => fileInput.click());
-
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('drag-over');
-    });
-
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('drag-over');
-    });
-
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('drag-over');
-        const files = e.dataTransfer.files;
-        if (files.length > 0) handleFile(files[0]);
-    });
-
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) handleFile(e.target.files[0]);
-    });
-}
-
-function setupRemoveFile() {
-    removeFile.addEventListener('click', () => {
-        fileInput.value = '';
-        fileInfo.style.display = 'none';
-        dropzone.style.display = '';
-        previewSection.style.display = 'none';
-        parsedRows = [];
-        matchedRows = [];
-        btnSubmit.disabled = true;
-    });
-}
-
-function handleFile(file) {
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['xlsx', 'xls', 'csv'].includes(ext)) {
-        alert('กรุณาเลือกไฟล์ Excel (.xlsx, .xls) หรือ CSV เท่านั้น');
-        return;
-    }
-
-    // Show file info
-    fileName.textContent = file.name;
-    fileSize.textContent = formatFileSize(file.size);
-    fileInfo.style.display = 'flex';
-    dropzone.style.display = 'none';
-
-    // Read file
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-            if (jsonData.length === 0) {
-                alert('ไฟล์ Excel ไม่มีข้อมูล');
-                return;
-            }
-
-            // Normalize column names (case-insensitive)
-            parsedRows = jsonData.map(row => {
-                const normalized = {};
-                Object.keys(row).forEach(key => {
-                    normalized[key.toLowerCase().trim()] = String(row[key]).trim();
-                });
-                return normalized;
-            });
-
-            // Check required columns
-            const firstRow = parsedRows[0];
-            if (!('name' in firstRow) || !('username' in firstRow)) {
-                const cols = Object.keys(firstRow).join(', ');
-                alert(`ไม่พบคอลัมน์ "name" หรือ "username"\nคอลัมน์ที่พบ: ${cols}`);
-                return;
-            }
-
-            matchAndPreview();
-        } catch (err) {
-            console.error('Error parsing file:', err);
-            alert('ไม่สามารถอ่านไฟล์ได้: ' + err.message);
-        }
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-// =============================================
-// Matching & Preview
+// Preview dispatcher
 // =============================================
 function matchAndPreview() {
-    matchedRows = parsedRows.map(row => {
-        const name = row.name;
-        const username = row.username;
-        // Try to find matching employee (exact match after trim)
-        const match = employeeList.find(emp =>
-            emp.Name.trim() === name.trim()
-        );
-        return {
-            name,
-            username,
-            emplCode: match ? match.Code : null,
-            matched: !!match,
-            status: 'pending',
-        };
-    });
-
-    renderPreview();
-}
-
-function renderPreview() {
-    previewBody.innerHTML = '';
-    const totalMatched = matchedRows.filter(r => r.matched).length;
-
-    matchedRows.forEach((row, idx) => {
-        const tr = document.createElement('tr');
-        tr.id = `row-${idx}`;
-        tr.innerHTML = `
-            <td class="col-num">${idx + 1}</td>
-            <td class="col-name">${escapeHtml(row.name)}</td>
-            <td class="col-username" style="font-family: Consolas, Monaco, monospace;">${escapeHtml(row.username)}</td>
-            <td class="col-match">
-                ${row.matched
-                    ? `<span class="empl-code">${row.emplCode}</span>`
-                    : `<span style="color: var(--accent-danger); font-size: 0.82rem;">ไม่พบ</span>`
-                }
-            </td>
-            <td class="col-status" id="status-${idx}">
-                ${row.matched
-                    ? '<span class="badge badge-matched">✓ จับคู่แล้ว</span>'
-                    : '<span class="badge badge-unmatched">✗ ไม่ตรง</span>'
-                }
-            </td>
-        `;
-        previewBody.appendChild(tr);
-    });
-
-    recordCount.textContent = `${totalMatched}/${matchedRows.length} จับคู่สำเร็จ`;
-    previewSection.style.display = '';
-    previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    updateSubmitButton();
+    if (currentMode === 'empl') matchAndPreviewEmpl();
+    else if (currentMode === 'user') matchAndPreviewUser();
 }
 
 // =============================================
-// Submit
+// Progress helpers
 // =============================================
-function setupSubmitButton() {
-    btnSubmit.addEventListener('click', () => {
-        if (!validateBeforeSubmit()) return;
-        const count = matchedRows.filter(r => r.matched).length;
-        if (!confirm(`ยืนยันเพิ่มผู้ใช้ ${count} คน?`)) return;
-        startBatchSubmit();
-    });
+function setStatus(i, status) {
+    const el = document.getElementById(`status-${i}`);
+    if (!el) return;
+    const map = {
+        sending: '<span class="badge badge-sending">⟳ กำลังส่ง...</span>',
+        success: '<span class="badge badge-success-custom">✓ สำเร็จ</span>',
+        fail: '<span class="badge badge-fail-custom">✗ ล้มเหลว</span>',
+    };
+    el.innerHTML = map[status] || '';
 }
 
-function updateSubmitButton() {
-    const hasMatched = matchedRows.some(r => r.matched);
-    const hasPassword = txtPassword.value.trim().length > 0;
-    const hasGroup = ddlUserGrp.value !== '';
-    const hasSession = getSessionId().length > 10;
-    btnSubmit.disabled = !(hasMatched && hasPassword && hasGroup && hasSession);
-}
-
-// Listen to changes for enabling submit
-txtPassword.addEventListener('input', updateSubmitButton);
-ddlUserGrp.addEventListener('change', updateSubmitButton);
-txtSessionId.addEventListener('input', updateSubmitButton);
-
-function validateBeforeSubmit() {
-    if (!getSessionId()) {
-        alert('กรุณากรอก Session ID');
-        txtSessionId.focus();
-        return false;
-    }
-    if (!ddlUserGrp.value) {
-        alert('กรุณาเลือกกลุ่มผู้ใช้');
-        ddlUserGrp.focus();
-        return false;
-    }
-    if (!txtPassword.value.trim()) {
-        alert('กรุณากำหนดรหัสผ่าน');
-        txtPassword.focus();
-        return false;
-    }
-    return true;
-}
-
-async function startBatchSubmit() {
-    const rowsToSubmit = matchedRows.filter(r => r.matched);
-    const total = rowsToSubmit.length;
-    let successCount = 0;
-    let failCount = 0;
-
-    // Show progress
+function showProgress(total) {
     progressSection.style.display = '';
     progressSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     btnSubmit.disabled = true;
-    btnSubmit.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-        </svg>
-        กำลังดำเนินการ...
-    `;
-
+    btnCancel.style.display = '';
+    btnCancel.disabled = false;
+    btnCancel.innerHTML = '<i class="bi bi-x-circle me-1"></i> ยกเลิก';
     statTotal.textContent = total;
     statSuccess.textContent = '0';
     statFail.textContent = '0';
+    progressBarFill.style.width = '0%';
+    progressText.textContent = '0%';
     logEntries.innerHTML = '';
+}
 
-    addLog('info', `เริ่มเพิ่มผู้ใช้ ${total} คน...`);
+function updateProgress(ok, fail, total) {
+    const pct = Math.round(((ok + fail) / total) * 100);
+    progressBarFill.style.width = pct + '%';
+    progressText.textContent = pct + '%';
+    statSuccess.textContent = ok;
+    statFail.textContent = fail;
+}
 
-    for (let i = 0; i < matchedRows.length; i++) {
-        const row = matchedRows[i];
-        if (!row.matched) continue;
-
-        const statusEl = document.getElementById(`status-${i}`);
-        statusEl.innerHTML = '<span class="badge badge-sending">⟳ กำลังส่ง...</span>';
-
-        try {
-            const payload = new URLSearchParams({
-                txtCode: '',
-                ddlUserGrp: ddlUserGrp.value,
-                ddlEmpl: row.emplCode,
-                txtUsername: row.username,
-                txtPassword: txtPassword.value.trim(),
-            });
-
-            const res = await apiFetch(API.saveUser, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: payload.toString(),
-            });
-
-            const json = await res.json();
-
-            if (json.ResponseStatus === '1') {
-                successCount++;
-                row.status = 'success';
-                statusEl.innerHTML = '<span class="badge badge-success">✓ สำเร็จ</span>';
-                addLog('success', `${row.name} (${row.username}) — เพิ่มสำเร็จ`);
-            } else {
-                failCount++;
-                row.status = 'fail';
-                const msg = json.ResponseMsg || 'ไม่ทราบสาเหตุ';
-                statusEl.innerHTML = `<span class="badge badge-fail" title="${escapeHtml(msg)}">✗ ล้มเหลว</span>`;
-                addLog('fail', `${row.name} (${row.username}) — ${msg}`);
-            }
-        } catch (err) {
-            failCount++;
-            row.status = 'fail';
-            statusEl.innerHTML = '<span class="badge badge-fail">✗ Error</span>';
-            addLog('fail', `${row.name} (${row.username}) — ${err.message}`);
-        }
-
-        // Update progress
-        const done = successCount + failCount;
-        const pct = Math.round((done / total) * 100);
-        progressBarFill.style.width = pct + '%';
-        progressText.textContent = pct + '%';
-        statSuccess.textContent = successCount;
-        statFail.textContent = failCount;
-
-        // Small delay to avoid hammering the server
-        if (i < matchedRows.length - 1) {
-            await sleep(300);
-        }
-    }
-
-    addLog('info', `🎉 เสร็จสิ้น! สำเร็จ ${successCount} / ล้มเหลว ${failCount}`);
-    btnSubmit.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
-        เสร็จสิ้น
-    `;
+function finishBatch(ok, fail) {
+    if (!cancelled) addLog('info', `เสร็จสิ้น! สำเร็จ ${ok} / ล้มเหลว ${fail}`);
+    btnSubmitText.textContent = cancelled ? 'ยกเลิกแล้ว' : 'เสร็จสิ้น';
+    btnCancel.style.display = 'none';
+    progressBarFill.classList.remove('progress-bar-animated');
 }
 
 // =============================================
 // Helpers
 // =============================================
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+function formatFileSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
 }
 
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function addLog(type, message) {
-    const entry = document.createElement('div');
-    entry.className = `log-entry log-${type}`;
-    entry.innerHTML = `<span class="log-dot"></span><span>${escapeHtml(message)}</span>`;
-    logEntries.appendChild(entry);
+function addLog(type, msg) {
+    const d = document.createElement('div');
+    d.className = `log-entry log-${type}`;
+    d.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : type === 'fail' ? 'x-circle' : 'info-circle'} me-1"></i>${esc(msg)}`;
+    logEntries.appendChild(d);
     logWrapper.scrollTop = logWrapper.scrollHeight;
 }

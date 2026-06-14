@@ -2,7 +2,7 @@
 HRMS Proxy Server
 - เปิด proxy server บนเครื่อง (localhost:5000)
 - ส่งต่อ request ไปยัง HRMS API พร้อม Session Cookie
-- แก้ปัญหา CORS
+- รองรับ Login ผ่าน /api/login
 """
 
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -11,46 +11,133 @@ import urllib.parse
 import json
 import os
 import ssl
+import http.cookiejar
 
-HRMS_BASE = 'https://hrms128.thai-nrls.org/HRMS11388/Database'
+HRMS_ORIGIN = 'https://hrms128.thai-nrls.org'
+HRMS_BASE = f'{HRMS_ORIGIN}/HRMS11388/Database'
+HRMS_LOGIN = f'{HRMS_ORIGIN}/HRMS11388/Account/AuthenUser'
 PORT = 5000
 
+
+def _ssl_context():
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
 class ProxyHandler(SimpleHTTPRequestHandler):
-    """Handle both static files and API proxy requests"""
+    """Handle static files, API proxy, and login"""
 
     def end_headers(self):
-        # Add CORS headers to all responses
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Session-Id')
         super().end_headers()
 
     def do_OPTIONS(self):
-        """Handle CORS preflight"""
         self.send_response(200)
         self.end_headers()
 
     def do_GET(self):
-        """Proxy GET requests to HRMS API or serve static files"""
         if self.path.startswith('/api/'):
             self._proxy_get()
         else:
-            # Serve static files from current directory
             super().do_GET()
 
     def do_POST(self):
-        """Proxy POST requests to HRMS API"""
-        if self.path.startswith('/api/'):
+        if self.path == '/api/login':
+            self._handle_login()
+        elif self.path.startswith('/api/'):
             self._proxy_post()
         else:
             self.send_error(404)
 
     def _get_session_id(self):
-        """Get session ID from request header"""
         return self.headers.get('X-Session-Id', '')
 
+    def _send_json(self, data, status=200):
+        body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_error_json(self, message):
+        self._send_json({'ResponseStatus': '0', 'ResponseMsg': f'Proxy Error: {message}'}, 500)
+
+    # =========================================
+    # LOGIN — ขอ Session ใหม่ แล้วยิง AuthenUser
+    # =========================================
+    def _handle_login(self):
+        """
+        1. GET หน้า HRMS เพื่อรับ ASP.NET_SessionId cookie
+        2. POST /Account/AuthenUser ด้วย cookie นั้น
+        3. ส่ง session_id กลับให้ frontend เก็บไว้ใช้
+        """
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ''
+            params = urllib.parse.parse_qs(body)
+            userid = params.get('userid', [''])[0]
+            password = params.get('password', [''])[0]
+
+            if not userid or not password:
+                self._send_json({'ResponseStatus': '0', 'ResponseMsg': 'userid and password required'})
+                return
+
+            ctx = _ssl_context()
+
+            # Step 1: GET เพื่อรับ session cookie
+            cj = http.cookiejar.CookieJar()
+            opener = urllib.request.build_opener(
+                urllib.request.HTTPCookieProcessor(cj),
+                urllib.request.HTTPSHandler(context=ctx)
+            )
+            opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+            opener.open(f'{HRMS_ORIGIN}/HRMS11388/Account/Login')
+
+            # ดึง ASP.NET_SessionId จาก cookies
+            session_id = ''
+            for cookie in cj:
+                if cookie.name == 'ASP.NET_SessionId':
+                    session_id = cookie.value
+                    break
+
+            if not session_id:
+                self._send_json({'ResponseStatus': '0', 'ResponseMsg': 'Cannot get session from HRMS'})
+                return
+
+            # Step 2: POST login
+            login_data = urllib.parse.urlencode({
+                'userid': userid,
+                'password': password,
+            }).encode('utf-8')
+
+            req = urllib.request.Request(HRMS_LOGIN, data=login_data, method='POST')
+            req.add_header('Cookie', f'ASP.NET_SessionId={session_id}')
+            req.add_header('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8')
+            req.add_header('X-Requested-With', 'XMLHttpRequest')
+            req.add_header('User-Agent', 'Mozilla/5.0')
+            req.add_header('Accept', 'application/json, */*; q=0.01')
+            req.add_header('Origin', HRMS_ORIGIN)
+            req.add_header('Referer', f'{HRMS_ORIGIN}/HRMS11388/Account/Login')
+
+            with urllib.request.urlopen(req, context=ctx) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+            # เพิ่ม session_id เข้าไปใน response
+            data['session_id'] = session_id
+
+            self._send_json(data)
+
+        except Exception as e:
+            self._send_error_json(str(e))
+
+    # =========================================
+    # PROXY — GET / POST
+    # =========================================
     def _proxy_get(self):
-        """Forward GET request to HRMS"""
         api_path = self.path.replace('/api/', '', 1)
         url = f'{HRMS_BASE}/{api_path}'
         session_id = self._get_session_id()
@@ -60,14 +147,9 @@ class ProxyHandler(SimpleHTTPRequestHandler):
             req.add_header('Cookie', f'ASP.NET_SessionId={session_id}')
             req.add_header('X-Requested-With', 'XMLHttpRequest')
             req.add_header('User-Agent', 'Mozilla/5.0')
-            req.add_header('Accept', 'application/json, text/javascript, */*; q=0.01')
+            req.add_header('Accept', 'application/json, */*; q=0.01')
 
-            # Disable SSL verification (for self-signed certs)
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-
-            with urllib.request.urlopen(req, context=ctx) as response:
+            with urllib.request.urlopen(req, context=_ssl_context()) as response:
                 data = response.read()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -77,7 +159,6 @@ class ProxyHandler(SimpleHTTPRequestHandler):
             self._send_error_json(str(e))
 
     def _proxy_post(self):
-        """Forward POST request to HRMS"""
         api_path = self.path.replace('/api/', '', 1)
         url = f'{HRMS_BASE}/{api_path}'
         session_id = self._get_session_id()
@@ -91,15 +172,14 @@ class ProxyHandler(SimpleHTTPRequestHandler):
             req.add_header('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8')
             req.add_header('X-Requested-With', 'XMLHttpRequest')
             req.add_header('User-Agent', 'Mozilla/5.0')
-            req.add_header('Accept', 'application/json, text/javascript, */*; q=0.01')
-            req.add_header('Referer', 'https://hrms128.thai-nrls.org/HRMS11388/Database/UserList?menuID=00015')
-            req.add_header('Origin', 'https://hrms128.thai-nrls.org')
+            req.add_header('Accept', 'application/json, */*; q=0.01')
+            if 'SaveEmpl' in api_path or 'DeleteEmpl' in api_path:
+                req.add_header('Referer', f'{HRMS_ORIGIN}/HRMS11388/Database/EmplList?menuID=00006')
+            else:
+                req.add_header('Referer', f'{HRMS_ORIGIN}/HRMS11388/Database/UserList?menuID=00015')
+            req.add_header('Origin', HRMS_ORIGIN)
 
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-
-            with urllib.request.urlopen(req, context=ctx) as response:
+            with urllib.request.urlopen(req, context=_ssl_context()) as response:
                 data = response.read()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -108,19 +188,7 @@ class ProxyHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_error_json(str(e))
 
-    def _send_error_json(self, message):
-        """Send error as JSON response"""
-        self.send_response(500)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.end_headers()
-        error = json.dumps({
-            'ResponseStatus': '0',
-            'ResponseMsg': f'Proxy Error: {message}'
-        }, ensure_ascii=False)
-        self.wfile.write(error.encode('utf-8'))
-
     def log_message(self, format, *args):
-        """Custom log format"""
         print(f'  [{self.log_date_time_string()}] {format % args}')
 
 
