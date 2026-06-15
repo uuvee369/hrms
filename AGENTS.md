@@ -99,16 +99,16 @@ All HRMS APIs return JSON:
 
 **Employee** (from `GetJSonEmplList`):
 ```json
-{ "Name": "ณฐกร เบญอะหลี", "Code": "00001" }
+{ "Name": "Somchai Jaidee", "Code": "00001" }
 ```
 
 **User** (from `GetJSonDataUser`):
 ```json
 {
   "Code": "00041",
-  "Name": "ซุลกิฟลี โต๊ะเดร์",
+  "Name": "Somchai Jaidee",
   "UserGrp": "00001",
-  "Username": "uuvee369",
+  "Username": "somchai.j",
   "UserGrpName": "Admin"
 }
 ```
