@@ -1,15 +1,37 @@
-"""
-HRMS Proxy Server
-- เปิด proxy server บนเครื่อง (localhost:5000)
-- ส่งต่อ request ไปยัง HRMS API พร้อม Session Cookie
-- รองรับ Login ผ่าน /api/login
-"""
+import sys
+import os
+import subprocess
+
+MIN_PYTHON = (3, 8)
+
+if sys.version_info < MIN_PYTHON:
+    print(f'\n  [ERROR] Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required (you have {sys.version})')
+    print(f'  Download: https://www.python.org/downloads/')
+    sys.exit(1)
+
+REQUIRED_PACKAGES = {
+    # 'requests': 'requests',
+    # 'package_import_name': 'pip_package_name',
+}
+
+def ensure_packages():
+    missing = []
+    for import_name, pip_name in REQUIRED_PACKAGES.items():
+        try:
+            __import__(import_name)
+        except ImportError:
+            missing.append(pip_name)
+    if missing:
+        print(f'  [*] Installing missing packages: {", ".join(missing)}')
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', *missing])
+        print(f'  [*] Done installing packages\n')
+
+ensure_packages()
 
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import urllib.request
 import urllib.parse
 import json
-import os
 import ssl
 import http.cookiejar
 
@@ -27,7 +49,6 @@ def _ssl_context():
 
 
 class ProxyHandler(SimpleHTTPRequestHandler):
-    """Handle static files, API proxy, and login"""
 
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -66,15 +87,7 @@ class ProxyHandler(SimpleHTTPRequestHandler):
     def _send_error_json(self, message):
         self._send_json({'ResponseStatus': '0', 'ResponseMsg': f'Proxy Error: {message}'}, 500)
 
-    # =========================================
-    # LOGIN — ขอ Session ใหม่ แล้วยิง AuthenUser
-    # =========================================
     def _handle_login(self):
-        """
-        1. GET หน้า HRMS เพื่อรับ ASP.NET_SessionId cookie
-        2. POST /Account/AuthenUser ด้วย cookie นั้น
-        3. ส่ง session_id กลับให้ frontend เก็บไว้ใช้
-        """
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ''
@@ -88,7 +101,6 @@ class ProxyHandler(SimpleHTTPRequestHandler):
 
             ctx = _ssl_context()
 
-            # Step 1: GET เพื่อรับ session cookie
             cj = http.cookiejar.CookieJar()
             opener = urllib.request.build_opener(
                 urllib.request.HTTPCookieProcessor(cj),
@@ -97,7 +109,6 @@ class ProxyHandler(SimpleHTTPRequestHandler):
             opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
             opener.open(f'{HRMS_ORIGIN}/HRMS11388/Account/Login')
 
-            # ดึง ASP.NET_SessionId จาก cookies
             session_id = ''
             for cookie in cj:
                 if cookie.name == 'ASP.NET_SessionId':
@@ -108,7 +119,6 @@ class ProxyHandler(SimpleHTTPRequestHandler):
                 self._send_json({'ResponseStatus': '0', 'ResponseMsg': 'Cannot get session from HRMS'})
                 return
 
-            # Step 2: POST login
             login_data = urllib.parse.urlencode({
                 'userid': userid,
                 'password': password,
@@ -126,7 +136,6 @@ class ProxyHandler(SimpleHTTPRequestHandler):
             with urllib.request.urlopen(req, context=ctx) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
-            # เพิ่ม session_id เข้าไปใน response
             data['session_id'] = session_id
 
             self._send_json(data)
@@ -134,9 +143,6 @@ class ProxyHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_error_json(str(e))
 
-    # =========================================
-    # PROXY — GET / POST
-    # =========================================
     def _proxy_get(self):
         api_path = self.path.replace('/api/', '', 1)
         url = f'{HRMS_BASE}/{api_path}'
@@ -194,16 +200,19 @@ class ProxyHandler(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    server = HTTPServer(('0.0.0.0', PORT), ProxyHandler)
+
     print()
     print('=' * 50)
     print('  HRMS Proxy Server')
     print('=' * 50)
-    print(f'  [*] Open: http://localhost:{PORT}')
-    print(f'  [*] Proxy to: {HRMS_BASE}')
-    print(f'  [*] Press Ctrl+C to stop')
+    print(f'  Python:  {sys.version.split()[0]}')
+    print(f'  Open:    http://localhost:{PORT}')
+    print(f'  Proxy:   {HRMS_BASE}')
+    print(f'  Stop:    Ctrl+C')
     print('=' * 50)
     print()
+
+    server = HTTPServer(('0.0.0.0', PORT), ProxyHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

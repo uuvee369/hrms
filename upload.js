@@ -1,7 +1,3 @@
-// =============================================
-// File Upload / Dropzone (upload.js)
-// =============================================
-
 function setupDropzone() {
     dropzone.addEventListener('click', () => fileInput.click());
     dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
@@ -63,10 +59,10 @@ function handleFile(file) {
             if (currentMode === 'import') {
                 const nameCol = findColumn(cols, ['name', 'ชื่อพนักงาน', 'ชื่อ', 'employee name']);
                 if (!nameCol) { alert(`ไม่พบคอลัมน์ชื่อพนักงาน (name)\nคอลัมน์ที่พบ: ${cols.join(', ')}`); return; }
-                
+
                 const usernameCol = findColumn(cols, ['username', 'ชื่อผู้ใช้', 'user']);
-                
-                parsedRows = parsedRows.map(r => ({ 
+
+                parsedRows = parsedRows.map(r => ({
                     _importName: r[nameCol] || '',
                     _importUsername: usernameCol ? (r[usernameCol] || '') : ''
                 }));

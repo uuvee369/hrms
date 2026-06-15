@@ -1,13 +1,7 @@
-/* =============================================
-   HRMS Batch Import - Custom CSS (Bootstrap 5 ++)
-   เฉพาะส่วนที่ Bootstrap ทำไม่ได้
-   ============================================= */
-
 body {
     font-family: 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Logo icon */
 .logo-icon {
     width: 48px;
     height: 48px;
@@ -15,7 +9,6 @@ body {
     box-shadow: 0 0 20px rgba(108, 92, 231, 0.3);
 }
 
-/* Tab Switcher */
 .tab-btn.active[data-mode="empl"] {
     background: linear-gradient(135deg, #00b894, #00cec9) !important;
     border-color: transparent !important;
@@ -34,7 +27,12 @@ body {
     color: #fff !important;
 }
 
-/* Dropzone */
+.tab-btn.active[data-mode="import"] {
+    background: linear-gradient(135deg, #00b894, #00cec9) !important;
+    border-color: transparent !important;
+    color: #fff !important;
+}
+
 .dropzone {
     cursor: pointer;
     transition: all 0.25s ease;
@@ -47,7 +45,6 @@ body {
     background: rgba(13, 110, 253, 0.05);
 }
 
-/* Status badges */
 .badge-matched {
     background: rgba(25, 135, 84, 0.15) !important;
     color: #20c997 !important;
@@ -84,7 +81,6 @@ body {
     50% { opacity: 0.5; }
 }
 
-/* Employee code mono */
 .empl-code {
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 0.82rem;
@@ -94,7 +90,6 @@ body {
     border-radius: 4px;
 }
 
-/* Log entries */
 .log-entry {
     font-size: 0.8rem;
     padding: 4px 8px;

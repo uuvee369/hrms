@@ -1,17 +1,12 @@
-// =============================================
-// Modes (modes.js)
-// นำเข้าข้อมูลแบบครบวงจร (Import Employees & Users)
-// =============================================
-
 function matchAndPreviewImport() {
     matchedRows = parsedRows.map(row => {
         const match = employeeList.find(e => e.Name.trim() === row._importName.trim());
-        return { 
-            name: row._importName, 
+        return {
+            name: row._importName,
             username: row._importUsername,
-            isDuplicate: !!match, 
+            isDuplicate: !!match,
             oldCode: match ? match.Code : null,
-            status: 'pending' 
+            status: 'pending'
         };
     });
 
@@ -24,7 +19,7 @@ function matchAndPreviewImport() {
     `;
 
     previewBody.innerHTML = '';
-    
+
     let newEmplCount = 0;
     let oldEmplCount = 0;
     let userCount = 0;
@@ -32,10 +27,10 @@ function matchAndPreviewImport() {
     matchedRows.forEach((row, i) => {
         if (row.isDuplicate) oldEmplCount++; else newEmplCount++;
         if (row.username) userCount++;
-        
+
         const tr = document.createElement('tr');
         tr.id = `row-${i}`;
-        
+
         let analysisBadge = '';
         if (row.isDuplicate && row.username) {
             analysisBadge = '<span class="badge bg-primary"><i class="bi bi-person-check me-1"></i> คนเก่า + สร้าง User</span>';
@@ -66,7 +61,7 @@ function matchAndPreviewImport() {
 async function batchSubmitImport() {
     const totalEmplToCreate = matchedRows.filter(r => !r.isDuplicate).length;
     const totalUsersToCreate = matchedRows.filter(r => r.username).length;
-    
+
     if (totalEmplToCreate === 0 && totalUsersToCreate === 0) {
         addLog('warning', `ไม่มีข้อมูลที่ต้องนำเข้า`);
         finishBatch(0, 0);
@@ -76,16 +71,15 @@ async function batchSubmitImport() {
     let ok = 0, fail = 0;
     cancelled = false;
     showProgress(matchedRows.length);
-    
-    // --- Phase 1: สร้างพนักงานใหม่ ---
+
     if (totalEmplToCreate > 0) {
         addLog('info', `[Phase 1] สร้างพนักงานใหม่ ${totalEmplToCreate} คน...`);
         for (let i = 0; i < matchedRows.length; i++) {
             if (cancelled) break;
             const row = matchedRows[i];
-            
-            if (row.isDuplicate) continue; // ข้ามคนเก่า
-            
+
+            if (row.isDuplicate) continue;
+
             setStatus(i, 'sending');
             try {
                 const res = await apiFetch(API.saveEmpl, {
@@ -96,11 +90,11 @@ async function batchSubmitImport() {
                 const json = await res.json();
                 if (json.ResponseStatus === '1') {
                     if (!row.username) { ok++; setStatus(i, 'success'); }
-                    else setStatus(i, 'sending'); // รอสร้าง user
+                    else setStatus(i, 'sending');
                     addLog('success', `[พนักงาน] ${row.name} — สำเร็จ`);
                 } else {
                     fail++; setStatus(i, 'fail'); addLog('fail', `[พนักงาน] ${row.name} — ${json.ResponseMsg || 'ล้มเหลว'}`);
-                    row.failedPhase1 = true; // Mark as failed so we don't try to create User later
+                    row.failedPhase1 = true;
                 }
             } catch (err) {
                 fail++; setStatus(i, 'fail'); addLog('fail', `[พนักงาน] ${row.name} — ${err.message}`);
@@ -111,24 +105,21 @@ async function batchSubmitImport() {
         }
     }
 
-    // --- Phase 2: โหลดข้อมูลอัพเดท (Refresh Employee List) ---
     if (!cancelled && totalEmplToCreate > 0 && totalUsersToCreate > 0) {
         addLog('info', `กำลังรีเฟรชฐานข้อมูลพนักงานเพื่อดึงรหัสพนักงานใหม่...`);
-        await loadEmployeeList(); // Wait for it to fetch new list
+        await loadEmployeeList();
     }
 
-    // --- Phase 3: สร้างผู้ใช้งาน ---
     if (!cancelled && totalUsersToCreate > 0) {
         addLog('info', `[Phase 2] สร้างบัญชีผู้ใช้งาน ${totalUsersToCreate} บัญชี...`);
         for (let i = 0; i < matchedRows.length; i++) {
             if (cancelled) break;
             const row = matchedRows[i];
-            
+
             if (!row.username || row.failedPhase1) continue;
 
             let emplCode = row.oldCode;
             if (!emplCode) {
-                // ค้นหารหัสพนักงานที่เพิ่งถูกสร้าง
                 const match = employeeList.find(e => e.Name.trim() === row.name.trim());
                 if (match) emplCode = match.Code;
             }
@@ -164,13 +155,12 @@ async function batchSubmitImport() {
         }
     }
 
-    // สำหรับคนที่ข้าม
     if (!cancelled) {
         for (let i = 0; i < matchedRows.length; i++) {
             const row = matchedRows[i];
             if (row.isDuplicate && !row.username) {
                 document.getElementById(`status-${i}`).innerHTML = '<span class="badge bg-secondary">ข้าม</span>';
-                ok++; // นับเป็น success (skip)
+                ok++;
             }
         }
         updateProgress(ok, fail, matchedRows.length);

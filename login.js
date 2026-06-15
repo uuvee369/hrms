@@ -1,7 +1,3 @@
-// =============================================
-// Login / Logout (login.js)
-// =============================================
-
 const loginScreen = document.getElementById('loginScreen');
 const mainAppScreen = document.getElementById('mainAppScreen');
 const loggedInSection = document.getElementById('loggedInSection');
@@ -25,7 +21,6 @@ function setupLogin() {
         loginEyeIcon.className = isPw ? 'bi bi-eye-slash' : 'bi bi-eye';
     });
 
-    // Restore session on reload
     const savedSession = sessionStorage.getItem('hrms_session');
     if (savedSession) {
         sessionId = savedSession;
@@ -79,9 +74,8 @@ function onLoginSuccess(userid, title) {
     loginStatus.style.display = 'none';
 
     if (currentMode === 'import') loadUserGroups();
-    loadEmployeeList(); // Load for all modes so we can do duplicate detection
+    loadEmployeeList();
 
-    // Save to sessionStorage
     sessionStorage.setItem('hrms_session', sessionId);
     sessionStorage.setItem('hrms_userid', userid);
     sessionStorage.setItem('hrms_title', title || '');
@@ -102,8 +96,7 @@ function doLogout() {
     ddlUserGrp.innerHTML = '<option value="">-- เข้าสู่ระบบก่อน --</option>';
     employeeList = [];
     resetFileState();
-    
-    // Clear sessionStorage
+
     sessionStorage.removeItem('hrms_session');
     sessionStorage.removeItem('hrms_userid');
     sessionStorage.removeItem('hrms_title');

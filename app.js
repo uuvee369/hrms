@@ -1,8 +1,3 @@
-// =============================================
-// HRMS Batch Import - Core (app.js)
-// State, DOM, Init, Tabs, Helpers, API, Progress
-// =============================================
-
 const API = {
     login: '/api/login',
     userGroups: '/api/GetJSonDataUserGrp',
@@ -13,7 +8,6 @@ const API = {
     users: '/api/GetJSonDataUser',
 };
 
-// State
 let currentMode = 'import';
 let sessionId = '';
 let cancelled = false;
@@ -23,7 +17,6 @@ let matchedRows = [];
 let userList = [];
 let userGroupsList = [];
 
-// DOM refs
 const appContainer = document.getElementById('appContainer');
 const pageTitle = document.getElementById('pageTitle');
 const pageSubtitle = document.getElementById('pageSubtitle');
@@ -65,9 +58,6 @@ const statTotal = document.getElementById('statTotal');
 const logEntries = document.getElementById('logEntries');
 const logWrapper = document.getElementById('logWrapper');
 
-// =============================================
-// Init
-// =============================================
 document.addEventListener('DOMContentLoaded', () => {
     setupTabs();
     setupLogin();
@@ -79,9 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     switchMode('empl');
 });
 
-// =============================================
-// Tabs
-// =============================================
 function setupTabs() {
     tabImport.addEventListener('click', () => switchMode('import'));
     tabDelete.addEventListener('click', () => switchMode('delete'));
@@ -98,7 +85,7 @@ function switchMode(mode) {
     resetFileState();
 
     if (mode === 'import') {
-        document.getElementById('btnSubmit').parentElement.style.display = 'none'; // ซ่อนจนกว่าจะมีการนำเข้า
+        document.getElementById('btnSubmit').parentElement.style.display = 'none';
         pageTitle.textContent = 'HRMS - นำเข้าข้อมูลครบวงจร';
         pageSubtitle.textContent = 'เพิ่มพนักงานและสร้างบัญชีผู้ใช้งานได้ในครั้งเดียวจากไฟล์ Excel';
         settingsTitle.textContent = 'ตั้งค่ารหัสผ่านสำหรับพนักงานใหม่ (เผื่อไว้ถ้าไฟล์มี Username)';
@@ -123,7 +110,7 @@ function switchMode(mode) {
         pageTitle.textContent = 'HRMS - ลบพนักงาน';
         pageSubtitle.textContent = 'เลือกพนักงานจากระบบเพื่อลบทีละคน';
         settingsTitle.textContent = 'ตั้งค่า';
-        document.getElementById('btnSubmit').parentElement.style.display = 'none'; // ซ่อนปุ่ม submit ใหญ่
+        document.getElementById('btnSubmit').parentElement.style.display = 'none';
         previewTitle.textContent = 'รายชื่อพนักงานในระบบ';
         btnShowUpload.style.display = 'none';
         if (sessionId) {
@@ -142,15 +129,12 @@ function resetFileState() {
     dropzone.style.display = '';
     previewSection.style.display = 'none';
     progressSection.style.display = 'none';
-    if (txtSearchTable) txtSearchTable.value = ''; // Reset search
+    if (txtSearchTable) txtSearchTable.value = '';
     parsedRows = [];
     matchedRows = [];
     btnSubmit.disabled = true;
 }
 
-// =============================================
-// Password Toggle
-// =============================================
 function setupPasswordToggle() {
     togglePassword.addEventListener('click', () => {
         const isPassword = txtPassword.type === 'password';
@@ -158,7 +142,6 @@ function setupPasswordToggle() {
         eyeIcon.className = isPassword ? 'bi bi-eye-slash' : 'bi bi-eye';
     });
 
-    // Search filter for table
     if (txtSearchTable) {
         txtSearchTable.addEventListener('input', (e) => {
             const filter = e.target.value.toLowerCase();
@@ -184,10 +167,8 @@ function setupPasswordToggle() {
     }
 }
 
-// โชว์ตารางรายชื่อพนักงานปกติ (ไม่ลบ ไม่นำเข้า)
 function loadExistingEmployeesList() {
     if (parsedRows.length > 0) {
-        // ถ้ามีการอัพโหลดไฟล์แล้ว ให้ข้ามไปโชว์พรีวิวแทน
         if (typeof matchAndPreview === 'function') matchAndPreview();
         return;
     }
@@ -207,12 +188,10 @@ function loadExistingEmployeesList() {
 
     previewBody.innerHTML = '';
     employeeList.forEach((emp, i) => {
-        // หาข้อมูล user ที่ตรงกับชื่อพนักงาน
         const user = userList.find(u => u.Name.trim() === emp.Name.trim());
-        
+
         let displayGrpName = '-';
         if (user) {
-            // Force re-mapping from userGroupsList because sometimes the API returns UserGrpName missing or incorrect
             if (user.UserGrp && userGroupsList.length > 0) {
                 const grpCodes = user.UserGrp.split(',');
                 const grpNames = grpCodes.map(code => {
@@ -226,7 +205,7 @@ function loadExistingEmployeesList() {
                 displayGrpName = user.UserGrp || '-';
             }
         }
-        
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="text-center text-muted">${i + 1}</td>
@@ -237,14 +216,11 @@ function loadExistingEmployeesList() {
         `;
         previewBody.appendChild(tr);
     });
-    
+
     recordCount.textContent = `พนักงานในระบบ ${employeeList.length} คน`;
     previewSection.style.display = '';
 }
 
-// =============================================
-// Submit
-// =============================================
 function setupSubmitButton() {
     btnSubmit.addEventListener('click', (e) => {
         e.preventDefault();
@@ -266,17 +242,17 @@ function setupSubmitButton() {
             document.getElementById('submitModalText').textContent = confirmText;
             const modalEl = document.getElementById('submitConfirmModal');
             const modal = new bootstrap.Modal(modalEl);
-            
+
             const btnConfirm = document.getElementById('btnConfirmSubmit');
             const newBtnConfirm = btnConfirm.cloneNode(true);
             btnConfirm.parentNode.replaceChild(newBtnConfirm, btnConfirm);
-            
+
             newBtnConfirm.addEventListener('click', () => {
                 newBtnConfirm.blur();
                 modal.hide();
                 confirmAction();
             });
-            
+
             modal.show();
         }
     });
@@ -294,9 +270,6 @@ function updateSubmitButton() {
 txtPassword.addEventListener('input', updateSubmitButton);
 ddlUserGrp.addEventListener('change', updateSubmitButton);
 
-// =============================================
-// Cancel
-// =============================================
 function setupCancelButton() {
     btnCancel.addEventListener('click', () => {
         cancelled = true;
@@ -305,9 +278,6 @@ function setupCancelButton() {
     });
 }
 
-// =============================================
-// API
-// =============================================
 async function apiFetch(url, options = {}) {
     const headers = { 'X-Session-Id': sessionId, ...(options.headers || {}) };
     return fetch(url, { ...options, headers });
@@ -339,27 +309,26 @@ async function loadEmployeeList() {
     try {
         const [resEmpl, resUser, resGroup] = await Promise.all([
             apiFetch(API.employees),
-            apiFetch(API.users).catch(() => null), // Optional
-            apiFetch(API.userGroups).catch(() => null) // Optional
+            apiFetch(API.users).catch(() => null),
+            apiFetch(API.userGroups).catch(() => null)
         ]);
-        
+
         const jsonEmpl = await resEmpl.json();
         if (jsonEmpl.ResponseStatus === '1' && jsonEmpl.ResponseData) {
             employeeList = JSON.parse(jsonEmpl.ResponseData);
         }
-        
+
         if (resUser) {
             const jsonUser = await resUser.json();
             if (jsonUser.ResponseStatus === '1' && jsonUser.ResponseData) {
                 userList = JSON.parse(jsonUser.ResponseData);
             }
         }
-        
+
         if (resGroup) {
             const jsonGroup = await resGroup.json();
             if (jsonGroup.ResponseStatus === '1' && jsonGroup.ResponseData) {
                 userGroupsList = JSON.parse(jsonGroup.ResponseData);
-                // Update dropdown if needed (if user hasn't called loadUserGroups separately)
                 if (ddlUserGrp && ddlUserGrp.options.length <= 1) {
                     ddlUserGrp.innerHTML = '<option value="">-- เลือกกลุ่มผู้ใช้ --</option>';
                     userGroupsList.forEach(g => {
@@ -384,16 +353,10 @@ async function loadEmployeeList() {
     }
 }
 
-// =============================================
-// Preview dispatcher
-// =============================================
 function matchAndPreview() {
     if (currentMode === 'import') matchAndPreviewImport();
 }
 
-// =============================================
-// Progress helpers
-// =============================================
 function setStatus(i, status) {
     const el = document.getElementById(`status-${i}`);
     if (!el) return;
@@ -435,9 +398,6 @@ function finishBatch(ok, fail) {
     progressBarFill.classList.remove('progress-bar-animated');
 }
 
-// =============================================
-// Helpers
-// =============================================
 function formatFileSize(b) {
     if (b < 1024) return b + ' B';
     if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
