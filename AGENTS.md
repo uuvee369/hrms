@@ -5,7 +5,7 @@
 
 ## Overview
 
-A browser-based tool that connects to an existing HRMS (Human Resource Management System) at `https://hrms128.thai-nrls.org/HRMS11388/` via a local Python proxy server. The tool allows HR staff to:
+A browser-based tool that connects to an existing HRMS (Healthcare Risk Management System) at `https://hrms128.thai-nrls.org/HRMS11388/` via a local Python proxy server. The tool allows HR staff to:
 
 1. **Import employees + create user accounts** from a single Excel file (unified 2-phase pipeline)
 2. **Delete employees** individually from a searchable list
