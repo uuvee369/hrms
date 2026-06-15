@@ -69,5 +69,5 @@ hrms/
 ├── upload.js      # จัดการลากวางไฟล์ Excel และแปลงข้อมูล (SheetJS)
 ├── modes.js       # โค้ดพระเอก! จัดการระบบ 2-Phase นำเข้าข้อมูล
 ├── delete.js      # โค้ดสำหรับหน้าลบข้อมูลพนักงาน
-└── AGENTS.md      # 🤖 คู่มือระดับเจาะลึก (Architecture & API) สำหรับ AI อ่านเวลาซ่อมโค้ด
+└── AGENTS.md      # คู่มือ (Architecture & API)
 ```
