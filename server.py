@@ -207,7 +207,6 @@ if __name__ == '__main__':
     print('=' * 50)
     print(f'  Python:  {sys.version.split()[0]}')
     print(f'  Open:    http://localhost:{PORT}')
-    print(f'  Proxy:   {HRMS_BASE}')
     print(f'  Stop:    Ctrl+C')
     print('=' * 50)
     print()
